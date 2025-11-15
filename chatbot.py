@@ -281,7 +281,11 @@ if prompt := st.chat_input("Ask me about stocks..."):
                             prompt
                         )
                         response = model.generate_content(comparison_prompt, stream=True)
-                        full_response = response.text
+                        full_response = ""
+                        for chunk in response:
+                            if chunk.text:
+                                full_response += chunk.text
+                        st.write(full_response)
                     else:
                         full_response = "I'd be happy to compare stocks! Please mention which two stocks you'd like me to compare, for example: 'Compare Reliance and TCS'."
                 
@@ -328,7 +332,10 @@ if prompt := st.chat_input("Ask me about stocks..."):
                     """
                     
                     response = model.generate_content(ai_prompt, stream=True)
-                    full_response = response.text
+                    full_response = ""               
+                    for chunk in response:
+                        if chunk.text:
+                            full_response += chunk.text
                 
                 # Display response
                 st.markdown(full_response)
