@@ -285,7 +285,6 @@ if prompt := st.chat_input("Ask me about stocks..."):
                         for chunk in response:
                             if chunk.text:
                                 full_response += chunk.text
-                        st.write(full_response)
                     else:
                         full_response = "I'd be happy to compare stocks! Please mention which two stocks you'd like me to compare, for example: 'Compare Reliance and TCS'."
                 
