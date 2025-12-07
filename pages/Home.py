@@ -80,7 +80,10 @@ def home_page():
     st.subheader("📰 Latest Market News")
     
     # Get real news data
-    news_data = news_analyzer.get_financial_news(num_articles=3)
+    news_data = news_analyzer.get_financial_news(
+        query="stock OR market",  # Simple query for free plan
+        num_articles=3
+    )
     
     if news_data:
         news_col1, news_col2, news_col3 = st.columns(3)

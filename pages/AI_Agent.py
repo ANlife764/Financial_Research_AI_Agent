@@ -12,7 +12,7 @@ from utils.technical_analysis import tech_analyzer
 from utils.portfolio_manager import portfolio_manager
 
 # Configure Gemini AI
-genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
+genai.configure(api_key=st.secrets.get("GOOGLE_API_KEY", os.environ.get("GOOGLE_API_KEY")))
 model = genai.GenerativeModel("models/gemini-2.5-flash")
 
 def ai_agent_page():
