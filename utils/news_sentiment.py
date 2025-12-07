@@ -12,14 +12,35 @@ import time
 # Initialize sentiment analyzer
 vader_analyzer = SentimentIntensityAnalyzer()
 
+from functools import lru_cache
+import time
+
 class NewsSentimentAnalyzer:
     def __init__(self):
-        # Use GNews API instead of NewsData.io
         self.api_key = st.secrets.get("GNEWS_API_KEY", os.environ.get("GNEWS_API_KEY"))
         self.base_url = "https://gnews.io/api/v4"
         self.cache = {}
         self.last_api_call = 0
-        self.rate_limit_delay = 1  # seconds between API calls
+        self.rate_limit_delay = 1.5  # Increased to 1.5 seconds
+        self.cache_duration = 300  # Cache for 5 minutes
+    
+    @lru_cache(maxsize=32)
+    def get_financial_news_cached(self, query: str, num_articles: int) -> List[Dict]:
+        """Cached version of get_financial_news"""
+        cache_key = f"{query}_{num_articles}"
+        
+        # Check cache
+        if cache_key in self.cache:
+            cache_time, cached_data = self.cache[cache_key]
+            if time.time() - cache_time < self.cache_duration:
+                return cached_data
+        
+        # Get fresh data
+        data = self.get_financial_news(query, num_articles)
+        
+        # Cache it
+        self.cache[cache_key] = (time.time(), data)
+        return data
     
     def _make_gnews_api_call(self, params: Dict) -> Dict:
         """Make API call to GNews with rate limiting"""
@@ -46,6 +67,8 @@ class NewsSentimentAnalyzer:
             st.error(f"Error calling GNews API: {str(e)}")
             return {"error": str(e)}
     
+    # In utils/news_sentiment.py - update the get_financial_news method
+
     def get_financial_news(self, query: str = "stock market", country: str = None, category: str = None, num_articles: int = 10) -> List[Dict]:
         """Get financial news from GNews API with Indian focus"""
         
@@ -54,33 +77,67 @@ class NewsSentimentAnalyzer:
             st.info("GNEWS_API_KEY not found. Using high-quality Indian financial news samples.")
             return self._get_high_quality_indian_financial_news(num_articles)
         
-        # Enhance query for Indian financial news
+        # Enhance query for better results
         enhanced_query = self._enhance_query_for_india(query)
         
         try:
-            # GNews API parameters
-            params = {
+            # GNews API parameters - try different combinations
+            all_articles = []
+            
+            # Strategy 1: Try the enhanced query first
+            params1 = {
                 'q': enhanced_query,
                 'lang': 'en',
                 'country': 'in',  # India
-                'max': num_articles * 2,  # Get more to filter
-                'in': 'title,description',  # Search in title and description
+                'max': 10,  # Get more to filter
+                'in': 'title,description',
                 'sortby': 'relevance'
             }
             
-            # Make API call
-            data = self._make_gnews_api_call(params)
+            data1 = self._make_gnews_api_call(params1)
+            if data1 and 'articles' in data1 and data1['articles']:
+                all_articles.extend(data1['articles'])
             
-            if 'error' in data:
-                st.warning(f"GNews API error: {data['error']}. Using sample data.")
-                return self._get_high_quality_indian_financial_news(num_articles)
-            
-            if data.get('articles'):
-                articles = data['articles']
+            # Strategy 2: Try simpler query if first didn't get enough
+            if len(all_articles) < num_articles:
+                params2 = {
+                    'q': query,  # Original query
+                    'lang': 'en',
+                    'country': 'in',
+                    'max': 5,
+                    'in': 'title',
+                    'sortby': 'publishedAt'  # Get latest
+                }
                 
+                data2 = self._make_gnews_api_call(params2)
+                if data2 and 'articles' in data2 and data2['articles']:
+                    # Avoid duplicates
+                    existing_titles = {article.get('title') for article in all_articles}
+                    for article in data2['articles']:
+                        if article.get('title') not in existing_titles:
+                            all_articles.append(article)
+            
+            # Strategy 3: Try without country restriction if still not enough
+            if len(all_articles) < num_articles // 2:
+                params3 = {
+                    'q': enhanced_query,
+                    'lang': 'en',
+                    'max': 5,
+                    'in': 'title',
+                    'sortby': 'relevance'
+                }
+                
+                data3 = self._make_gnews_api_call(params3)
+                if data3 and 'articles' in data3 and data3['articles']:
+                    existing_titles = {article.get('title') for article in all_articles}
+                    for article in data3['articles']:
+                        if article.get('title') not in existing_titles:
+                            all_articles.append(article)
+            
+            if all_articles:
                 # Process articles
                 processed_news = []
-                for article in articles:
+                for article in all_articles[:num_articles * 2]:  # Process more than needed
                     # Analyze sentiment
                     text_to_analyze = f"{article.get('title', '')}. {article.get('description', '')}"
                     sentiment = self.analyze_sentiment(text_to_analyze)
@@ -103,9 +160,12 @@ class NewsSentimentAnalyzer:
                 
                 if filtered_news and len(filtered_news) > 0:
                     return filtered_news[:num_articles]
+                elif processed_news:
+                    # Return what we have even if not perfectly filtered
+                    return processed_news[:num_articles]
             
             # If no articles found
-            st.info(f"No news found for '{enhanced_query}'. Using high-quality samples.")
+            st.info(f"Limited news found for '{enhanced_query}'. Using enhanced samples.")
             return self._get_high_quality_indian_financial_news(num_articles)
             
         except Exception as e:
@@ -260,15 +320,20 @@ class NewsSentimentAnalyzer:
         """Enhance query to get better Indian financial news"""
         query_lower = query.lower()
         
-        # Map general queries to Indian financial terms
+        # Map general queries to more specific Indian financial terms
         query_mapping = {
-            "stock market": "Indian stock market OR sensex OR nifty OR BSE",
-            "market": "Indian stock market OR markets India",
-            "banking": "RBI OR Indian banking OR banks India",
-            "finance": "Indian finance OR financial India",
-            "technology": "Indian technology OR IT sector India",
-            "energy": "Indian energy OR oil India OR gas India",
-            "business": "Indian business OR economy India"
+            "stock market": "(sensex OR nifty OR BSE OR NSE OR stock market) AND India",
+            "market": "(Indian stock market OR equity market) AND India",
+            "banking": "(RBI OR Indian banking OR HDFC Bank OR ICICI Bank OR SBI) AND India",
+            "finance": "(Indian finance OR financial markets) AND India",
+            "technology": "(Indian technology OR IT sector OR TCS OR Infosys) AND India",
+            "energy": "(Indian energy OR Reliance OR oil India OR gas) AND India",
+            "business": "(Indian business OR economy India OR corporate) AND India",
+            "rbi": "RBI AND (monetary policy OR repo rate OR banking)",
+            "tcs": "TCS AND (Tata Consultancy Services OR IT)",
+            "reliance": "Reliance Industries AND (Mukesh Ambani OR oil OR telecom)",
+            "hdfc": "HDFC Bank AND (banking OR finance)",
+            "icici": "ICICI Bank AND (banking OR finance)"
         }
         
         # Check for mapped queries
@@ -276,9 +341,9 @@ class NewsSentimentAnalyzer:
             if key in query_lower:
                 return value
         
-        # Add "India" to query if not already present
+        # Add "India" and financial context to query if not already present
         if "india" not in query_lower and "indian" not in query_lower:
-            return f"{query} India"
+            return f"({query}) AND (India OR Indian)"
         
         return query
 

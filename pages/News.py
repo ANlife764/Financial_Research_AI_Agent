@@ -1,114 +1,26 @@
 # pages/news.py
 import streamlit as st
+import re
+from datetime import datetime, timezone, timedelta
 from utils.news_sentiment import news_analyzer
-from datetime import datetime
 
-def news_page():
-    st.header("📰 News & Market Sentiment")
+def _clean_description(description):
+    """Clean up news description"""
+    # Remove MENAFN tags and other noise
     
-    # DEBUG: Test the API directly
-    if st.sidebar.button("🔍 Debug API"):
-        import requests
-        test_url = "https://newsdata.io/api/1/latest"
-        params = {
-            'apikey': st.secrets.get("NEWSDATA_API_KEY", ""),
-            'q': 'stock market',
-            'language': 'en',
-            'size': 3
-        }
-        
-        response = requests.get(test_url, params=params)
-        st.write("### API Test Results:")
-        st.write(f"**Status Code:** {response.status_code}")
-        st.write(f"**Response:**")
-        st.json(response.json())
-        
-        # Check what we actually got
-        data = response.json()
-        if data.get('status') == 'success':
-            st.success(f"✅ API Success! Found {data.get('totalResults', 0)} articles")
-            if data.get('results'):
-                st.write("**Sample Article:**")
-                st.write(data['results'][0])
-        else:
-            st.error(f"❌ API Error: {data.get('message', 'Unknown error')}")
-        
-        # News Search
-    search_col1, search_col2 = st.columns([3, 1])
-    with search_col1:
-        search_query = st.text_input("🔍 Search news...", value="stock market")
-    with search_col2:
-        st.write("")
-        st.write("")
-        search_clicked = st.button("Search")
-
-    # If search button clicked, show results
-    if search_clicked and search_query:
-        st.subheader(f"🔍 Search Results for: '{search_query}'")
-        display_news_category(search_query)
-
-    # News Categories
-    tab1, tab2, tab3, tab4 = st.tabs(["📈 Market News", "🏦 Banking", "💻 Technology", "🛢️ Energy"])
-
-    with tab1:
-        display_news_category("market")  # This will use "stock market OR sensex OR nifty"
-
-    with tab2:
-        display_news_category("banking")  # This will use "banking OR RBI OR finance"
-
-    with tab3:
-        display_news_category("technology")  # This will use "technology OR IT OR startup"
-
-    with tab4:
-        display_news_category("energy")  # This will use "energy OR oil OR gas"
-
-def display_news_category(category):
-    """Display news for a specific category with better filtering"""
+    # Remove (MENAFN - ...) patterns
+    description = re.sub(r'\(MENAFN[^)]*\)', '', description)
     
-    # Better queries for each category
-    query_map = {
-        "market": "Indian stock market OR sensex OR nifty",
-        "banking": "RBI OR Indian banking OR HDFC Bank OR ICICI Bank", 
-        "technology": "Indian technology OR TCS OR Infosys OR tech startup India",
-        "energy": "Indian energy OR Reliance OR oil India OR gas India"
-    }
+    # Remove (IANS) patterns
+    description = re.sub(r'\(IANS[^)]*\)', '', description)
     
-    search_query = query_map.get(category.lower(), category)
+    # Remove extra whitespace
+    description = ' '.join(description.split())
     
-    # Get news
-    news_items = news_analyzer.get_financial_news(
-        query=search_query,
-        num_articles=6  # Get more to allow filtering
-    )
-    
-    if news_items:
-        # Show the most relevant news first
-        relevant_count = 0
-        for news in news_items:
-            title = news.get('title', '').lower()
-            
-            # Check if it's actually relevant to the category
-            if _is_relevant_to_category(news, category):
-                display_news_item(news)
-                relevant_count += 1
-                
-                # Stop after showing 3 relevant items
-                if relevant_count >= 3:
-                    break
-        
-        # If no relevant news found, show sample
-        if relevant_count == 0:
-            st.info(f"No relevant {category} news found. Showing general financial news.")
-            for news in news_items[:3]:
-                display_news_item(news)
-    else:
-        # Show sample data
-        display_sample_financial_news(category)
-
+    return description.strip()
 
 def get_time_ago(published_at):
     """Convert datetime to 'X hours ago' format"""
-    from datetime import datetime, timezone, timedelta
     
     # If published_at is already a string in a nice format, return it
     if isinstance(published_at, str):
@@ -218,7 +130,7 @@ def display_news_item(news):
             # Description
             description = news.get('description', '')
             if description:
-                # Clean up description (remove MENAFN tags, etc.)
+                # Clean up description
                 clean_desc = _clean_description(description)
                 short_desc = clean_desc[:150] + "..." if len(clean_desc) > 150 else clean_desc
                 st.write(short_desc)
@@ -246,6 +158,60 @@ def display_news_item(news):
                 st.metric("Relevance", "Medium", delta="📊")
         
         st.divider()
+
+def _is_relevant_to_category(news, category):
+    """Check if news is relevant to the category"""
+    title = news.get('title', '').lower()
+    description = news.get('description', '').lower()
+    
+    category_keywords = {
+        "market": ['stock', 'market', 'sensex', 'nifty', 'bse', 'nse', 'equity', 'invest', 'trading'],
+        "banking": ['bank', 'rbi', 'finance', 'loan', 'interest', 'credit', 'hdfc', 'icici', 'sbi'],
+        "technology": ['tech', 'software', 'it', 'digital', 'tcs', 'infosys', 'wipro', 'startup', 'ai'],
+        "energy": ['energy', 'oil', 'gas', 'power', 'reliance', 'adani', 'renewable', 'coal', 'petroleum']
+    }
+    
+    keywords = category_keywords.get(category.lower(), [])
+    
+    # Check if any keyword is in title or description
+    for keyword in keywords:
+        if keyword in title or keyword in description:
+            return True
+    
+    return False
+
+def display_news_category(category):
+    """Display news for a specific category using GNews"""
+    
+    # Map categories to GNews optimized queries
+    query_map = {
+        "stock market": "Indian stock market OR sensex OR nifty OR BSE",
+        "market": "Indian stock market OR markets India",
+        "rbi or indian banking": "RBI OR Indian banking OR banks India",
+        "indian technology or it sector india": "Indian technology OR IT sector India",
+        "indian energy or oil india or gas india": "Indian energy OR oil India OR gas India"
+    }
+    
+    # Use mapped query or the category itself
+    search_query = query_map.get(category.lower(), category)
+    
+    # Get news from GNews
+    news_items = news_analyzer.get_financial_news(
+        query=search_query,
+        num_articles=8  # Get more to allow filtering
+    )
+    
+    if news_items and isinstance(news_items, list) and len(news_items) > 0:
+        st.write(f"Found {len(news_items)} articles for '{search_query}'")
+        
+        for i, news in enumerate(news_items[:4]):  # Show max 4
+            display_news_item(news)
+    else:
+        st.info(f"No news found for '{search_query}'. Showing sample data.")
+        # Show sample data from the analyzer
+        sample_news = news_analyzer._get_high_quality_indian_financial_news(4)
+        for news in sample_news:
+            display_news_item(news)
 
 def get_indian_financial_news_specific():
     """Try specific Indian financial queries"""
@@ -279,44 +245,6 @@ def get_indian_financial_news_specific():
             unique_news.append(news)
     
     return unique_news[:5]  # Return top 5
-
-def _is_relevant_to_category(news, category):
-    """Check if news is relevant to the category"""
-    title = news.get('title', '').lower()
-    description = news.get('description', '').lower()
-    
-    category_keywords = {
-        "market": ['stock', 'market', 'sensex', 'nifty', 'bse', 'nse', 'equity', 'invest', 'trading'],
-        "banking": ['bank', 'rbi', 'finance', 'loan', 'interest', 'credit', 'hdfc', 'icici', 'sbi'],
-        "technology": ['tech', 'software', 'it', 'digital', 'tcs', 'infosys', 'wipro', 'startup', 'ai'],
-        "energy": ['energy', 'oil', 'gas', 'power', 'reliance', 'adani', 'renewable', 'coal', 'petroleum']
-    }
-    
-    keywords = category_keywords.get(category.lower(), [])
-    
-    # Check if any keyword is in title or description
-    for keyword in keywords:
-        if keyword in title or keyword in description:
-            return True
-    
-    return False
-
-def _clean_description(description):
-    """Clean up news description"""
-    # Remove MENAFN tags and other noise
-    import re
-    
-    # Remove (MENAFN - ...) patterns
-    description = re.sub(r'\(MENAFN[^)]*\)', '', description)
-    
-    # Remove (IANS) patterns
-    description = re.sub(r'\(IANS[^)]*\)', '', description)
-    
-    # Remove extra whitespace
-    description = ' '.join(description.split())
-    
-    return description.strip()
-
 
 def test_better_queries():
     """Test different queries to see what works best"""
@@ -356,6 +284,85 @@ def test_better_queries():
         
         st.divider()
 
+def news_page():
+    st.header("📰 News & Market Sentiment")
+    
+    # DEBUG: Test GNews API directly
+    if st.sidebar.button("🔍 Debug GNews API"):
+        import requests
+        from utils.news_sentiment import NewsSentimentAnalyzer
+        
+        # Create analyzer instance
+        analyzer = NewsSentimentAnalyzer()
+        
+        st.write("### GNews API Test Results:")
+        
+        # Test the actual method
+        test_news = analyzer.get_financial_news(
+            query="Indian stock market", 
+            num_articles=3
+        )
+        
+        st.write(f"**Got {len(test_news) if test_news else 0} articles**")
+        
+        if test_news:
+            st.write("**First Article:**")
+            st.json(test_news[0])
+        
+        # Direct API test
+        st.write("### Direct API Test:")
+        test_url = "https://gnews.io/api/v4/search"
+        params = {
+            'apikey': st.secrets.get("GNEWS_API_KEY", ""),
+            'q': 'Indian stock market',
+            'lang': 'en',
+            'country': 'in',
+            'max': 3
+        }
+        
+        response = requests.get(test_url, params=params, timeout=10)
+        st.write(f"**Status Code:** {response.status_code}")
+        if response.status_code == 200:
+            data = response.json()
+            st.write(f"**Articles Found:** {len(data.get('articles', []))}")
+            if data.get('articles'):
+                st.write("**Sample Article:**")
+                st.write(data['articles'][0])
+        else:
+            st.error(f"❌ API Error: {response.status_code} - {response.text}")
+    
+    # News Search
+    search_col1, search_col2 = st.columns([3, 1])
+    with search_col1:
+        search_query = st.text_input("🔍 Search news...", value="stock market")
+    with search_col2:
+        st.write("")
+        st.write("")
+        search_clicked = st.button("Search")
+    
+    # If search button clicked, show results
+    if search_clicked and search_query:
+        st.subheader(f"🔍 Search Results for: '{search_query}'")
+        display_news_category(search_query)
+    
+    # News Categories with GNews optimized queries
+    tab1, tab2, tab3, tab4 = st.tabs(["📈 Market News", "🏦 Banking", "💻 Technology", "🛢️ Energy"])
+
+    with tab1:
+        # Use more specific query for market news
+        display_news_category("stock market OR sensex OR nifty")
+
+    with tab2:
+        # More comprehensive banking query
+        display_news_category("banking OR RBI OR HDFC OR ICICI OR SBI")
+
+    with tab3:
+        # Tech sector focused query
+        display_news_category("technology OR IT OR TCS OR Infosys OR Wipro")
+
+    with tab4:
+        # Energy sector query
+        display_news_category("energy OR oil OR gas OR Reliance OR Adani")
 # Add a button to run this test
 if st.sidebar.button("Test Better Queries"):
     test_better_queries()
