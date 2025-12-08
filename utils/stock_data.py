@@ -6,10 +6,10 @@ from datetime import datetime, timedelta
 import streamlit as st
 from typing import Dict, Optional, Tuple
 import time
-import requests_cache
+#import requests_cache
 
 # Cache for API calls
-session = requests_cache.CachedSession('yfinance.cache', expire_after=300)
+#session = requests_cache.CachedSession('yfinance.cache', expire_after=300)
 
 # Indian stock mappings with sectors
 INDIAN_STOCKS = {
@@ -24,7 +24,7 @@ INDIAN_STOCKS = {
 def get_stock_data(ticker: str, period: str = "1mo", interval: str = "1d") -> Tuple[Optional[pd.DataFrame], float, float, float, float]:
     """Get stock data with caching and error handling"""
     try:
-        stock = yf.Ticker(ticker, session=session)
+        stock = yf.Ticker(ticker)
         df = stock.history(period=period, interval=interval)
         
         if df.empty:
@@ -44,7 +44,7 @@ def get_stock_data(ticker: str, period: str = "1mo", interval: str = "1d") -> Tu
 def get_financial_metrics(stock_name: str, ticker: str) -> Dict:
     """Get comprehensive financial metrics for analysis"""
     try:
-        stock = yf.Ticker(ticker, session=session)
+        stock = yf.Ticker(ticker)
         info = stock.info
         
         # Basic financial metrics
