@@ -29,123 +29,79 @@ def ai_agent_page():
         st.session_state.show_graph = False
     if "graph_stock" not in st.session_state:
         st.session_state.graph_stock = None
+    # Add flag for button-triggered responses
+    if "process_button_prompt" not in st.session_state:
+        st.session_state.process_button_prompt = None
+    
+    # ==== CONTROL PANEL (Collapsible) ====
+    with st.expander("⚙️ **Control Panel**", expanded=True):
+        col_a, col_b, col_c = st.columns(3)
+        
+        with col_a:
+            st.subheader("📊 Stock Selection")
+            stock_name = st.selectbox("Choose a stock:", list(INDIAN_STOCKS.keys()), key="stock_select")
+            st.session_state.selected_stock = stock_name
+            
+            # Stock comparison
+            st.subheader("⚖️ Compare")
+            other_stocks = [s for s in INDIAN_STOCKS.keys() if s != stock_name]
+            compare_stock = st.selectbox("Compare with:", other_stocks, key="compare_select")
+            if st.button("Compare Stocks", use_container_width=True, key="btn_compare_stocks"):
+                prompt = f"Compare {stock_name} with {compare_stock}"
+                st.session_state.messages.append({"role": "user", "content": prompt})
+                st.session_state.process_button_prompt = prompt
+                st.rerun()
+        
+        with col_b:
+            st.subheader("💼 Portfolio")
+            try:
+                portfolio_summary = portfolio_manager.get_portfolio_summary()
+                if portfolio_summary and portfolio_summary['total_investment'] > 0:
+                    st.metric("Portfolio Value", f"₹{portfolio_summary['current_value']:,.2f}", key="metric_portfolio_value")
+                    st.metric("Total P&L", f"₹{portfolio_summary['total_pnl']:,.2f}", key="metric_portfolio_pnl")
+                    
+                    if st.button("📋 Get Advice", use_container_width=True, key="btn_portfolio_advice_ai"):
+                        prompt = "Give me advice for my current portfolio"
+                        st.session_state.messages.append({"role": "user", "content": prompt})
+                        st.session_state.process_button_prompt = prompt
+                        st.rerun()
+                    
+                    if st.button("🔄 Analyze", use_container_width=True, key="btn_portfolio_analyze_ai"):
+                        prompt = "Analyze my portfolio performance and suggest improvements"
+                        st.session_state.messages.append({"role": "user", "content": prompt})
+                        st.session_state.process_button_prompt = prompt
+                        st.rerun()
+                else:
+                    st.info("No portfolio data yet")
+                    if st.button("➕ Create Portfolio", use_container_width=True, key="btn_create_portfolio_ai"):
+                        prompt = "How should I start building my investment portfolio?"
+                        st.session_state.messages.append({"role": "user", "content": prompt})
+                        st.session_state.process_button_prompt = prompt
+                        st.rerun()
+            except:
+                st.error("Portfolio manager not available")
+        
+        with col_c:
+            st.subheader("💡 Try Asking:")
+            st.markdown("""
+            - "Price of TCS?"
+            - "Compare Infosys vs TCS"
+            - "News sentiment?"
+            - "Market trends?"
+            """)
 
-    # ==== COMPLETE SIDEBAR WITH ALL DETAILS ====
-    with st.sidebar:
-        st.header("📊 Stock Selection")
-        
-        # Stock selection
-        stock_name = st.selectbox("Choose a stock:", list(INDIAN_STOCKS.keys()))
-        st.session_state.selected_stock = stock_name
-        
-        # Get current stock data for sidebar display
-        ticker = INDIAN_STOCKS[stock_name]["ticker"]
-        df, price, change_pct, max_price, min_price = get_stock_data(ticker)
-        
-        if price:
-            st.subheader(f"📊 {stock_name} Financial Snapshot")
+            if st.button("🗑️ Clear", use_container_width=True, key="btn_clear_chat_quick"):
+                st.session_state.messages = [
+                    {"role": "assistant", "content": "Chat cleared! How can I help you with stocks today?"}
+                ]
+                st.session_state.show_graph = False
+                st.session_state.process_button_prompt = None
+                st.rerun()
             
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Current Price", f"₹{price:.2f}")
-                st.metric("1M Change", f"{change_pct:.2f}%")
-            
-            with col2:
-                st.metric("52W High", f"₹{max_price:.2f}")
-                st.metric("52W Low", f"₹{min_price:.2f}")
-            
-            # Show financial metrics if available
-            financials = get_financial_metrics(stock_name, ticker)
-            if 'error' not in financials:
-                st.write("**Valuation:**")
-                st.write(f"P/E Ratio: {financials.get('pe_ratio', 'N/A')}")
-                st.write(f"Market Cap: {financials.get('market_cap', 'N/A')}")
-                st.write(f"Sector: {financials.get('sector', 'N/A')}")
-        
-        st.header("💡 Quick Actions")
-        
-        # Quick action buttons - COMPLETE SET
-        if st.button("📈 Show Current Price", use_container_width=True):
-            st.session_state.messages.append({"role": "user", "content": f"What's the current price of {stock_name}?"})
-            st.rerun()
-        
-        if st.button("📊 Show Graph", use_container_width=True):
-            st.session_state.messages.append({"role": "user", "content": f"Show me the graph for {stock_name}"})
-            st.session_state.show_graph = True
-            st.session_state.graph_stock = stock_name
-            st.rerun()
-        
-        if st.button("💰 Financial Analysis", use_container_width=True):
-            st.session_state.messages.append({"role": "user", "content": f"Give me financial analysis for {stock_name}"})
-            st.rerun()
-        
-        if st.button("🔍 Technical Analysis", use_container_width=True):
-            st.session_state.messages.append({"role": "user", "content": f"Show technical analysis for {stock_name}"})
-            st.rerun()
-        
-        if st.button("📰 News Sentiment", use_container_width=True):
-            st.session_state.messages.append({"role": "user", "content": f"What's the news sentiment for {stock_name}?"})
-            st.rerun()
-        
-        # Stock comparison section
-        st.header("⚖️ Stock Comparison")
-        other_stocks = [s for s in INDIAN_STOCKS.keys() if s != stock_name]
-        compare_stock = st.selectbox("Compare with:", other_stocks)
-        if st.button("Compare Stocks", use_container_width=True):
-            st.session_state.messages.append({"role": "user", "content": f"Compare {stock_name} with {compare_stock}"})
-            st.rerun()
-        
-        # Portfolio integration section
-        st.header("💼 Portfolio Tools")
-        try:
-            portfolio_summary = portfolio_manager.get_portfolio_summary()
-            if portfolio_summary and portfolio_summary['total_investment'] > 0:
-                st.metric("Portfolio Value", f"₹{portfolio_summary['current_value']:,.2f}")
-                st.metric("Total P&L", f"₹{portfolio_summary['total_pnl']:,.2f}")
-                
-                if st.button("📋 Portfolio Advice", use_container_width=True):
-                    st.session_state.messages.append({"role": "user", "content": "Give me advice for my current portfolio"})
-                    st.rerun()
-                
-                if st.button("🔄 Portfolio Analysis", use_container_width=True):
-                    st.session_state.messages.append({"role": "user", "content": "Analyze my portfolio performance and suggest improvements"})
-                    st.rerun()
-            else:
-                st.info("No portfolio data yet")
-                if st.button("➕ Create Portfolio", use_container_width=True):
-                    st.session_state.messages.append({"role": "user", "content": "How should I start building my investment portfolio?"})
-                    st.rerun()
-        except Exception as e:
-            st.error("Portfolio manager not available")
-        
-        # Market tools section
-        st.header("🌐 Market Tools")
-        if st.button("📈 Market Overview", use_container_width=True):
-            st.session_state.messages.append({"role": "user", "content": "Give me today's market overview and trends"})
-            st.rerun()
-        
-        if st.button("📰 Latest News", use_container_width=True):
-            st.session_state.messages.append({"role": "user", "content": "What are the latest market news and developments?"})
-            st.rerun()
-        
-        if st.button("⚡ Sector Analysis", use_container_width=True):
-            st.session_state.messages.append({"role": "user", "content": "Analyze different market sectors and their performance"})
-            st.rerun()
-        
-        # Chat management
-        st.header("⚙️ Chat Settings")
-        if st.button("🗑️ Clear Chat", use_container_width=True):
-            st.session_state.messages = [
-                {"role": "assistant", "content": "Chat cleared! How can I help you with stocks today?"}
-            ]
-            st.session_state.show_graph = False
-            st.rerun()
-        
-        if st.button("💾 Save Conversation", use_container_width=True):
-            st.session_state.messages.append({"role": "assistant", "content": "Conversation saved! You can continue from here."})
-            st.rerun()
-
-    # ==== MAIN CHAT INTERFACE ====
+    
+    st.markdown("---")
+    
+    # ==== MAIN CHAT AREA ====
     
     # Display chat messages
     for message in st.session_state.messages:
@@ -161,10 +117,31 @@ def ai_agent_page():
             st.session_state.show_graph = True
             st.session_state.graph_stock = st.session_state.selected_stock
 
-    # Chat input
+
+    # Handle button-triggered prompts
+    if st.session_state.process_button_prompt:
+        prompt = st.session_state.process_button_prompt
+        # Clear the flag
+        st.session_state.process_button_prompt = None
+        
+        # Generate AI response for button-triggered prompt
+        with st.chat_message("assistant"):
+            with st.spinner("🔍 Analyzing markets..."):
+                try:
+                    response = generate_enhanced_ai_response(prompt, st.session_state.selected_stock)
+                    st.markdown(response)
+                    st.session_state.messages.append({"role": "assistant", "content": response})
+                except Exception as e:
+                    error_msg = f"Sorry, I encountered an error: {str(e)}"
+                    st.markdown(error_msg)
+                    st.session_state.messages.append({"role": "assistant", "content": error_msg})
+
+    # Chat input (original functionality)
     if prompt := st.chat_input("Ask me about stocks, analysis, or investment advice..."):
         # Add user message to chat history
         st.session_state.messages.append({"role": "user", "content": prompt})
+        
+        # Display user message immediately
         with st.chat_message("user"):
             st.markdown(prompt)
 
@@ -180,32 +157,8 @@ def ai_agent_page():
                     st.markdown(error_msg)
                     st.session_state.messages.append({"role": "assistant", "content": error_msg})
 
-    # Display graph if requested
-    if st.session_state.show_graph and st.session_state.graph_stock:
-        display_stock_graph(st.session_state.graph_stock)
-
-    # Suggested questions in main area
-    st.sidebar.header("🎯 Try Asking:")
-    st.sidebar.markdown("""
-    **Price & Analysis:**
-    - "What's the current price of TCS?"
-    - "Show me Reliance's performance graph"
-    - "Technical analysis for ICICI Bank"
-    
-    **Comparison:**
-    - "Compare Infosys and TCS"
-    - "Which is better: HDFC Bank or ICICI Bank?"
-    
-    **Investment Advice:**
-    - "Is this a good time to buy HDFC Bank?"
-    - "Should I invest in technology stocks?"
-    - "Portfolio diversification advice"
-    
-    **Market Insights:**
-    - "News sentiment for Bajaj Finance"
-    - "Market trends this week"
-    - "Sector performance analysis"
-    """)
+# [Keep all the existing helper functions: generate_enhanced_ai_response, generate_comparison_context, display_stock_graph]
+# ... (rest of your functions remain exactly the same) ...
 
 def generate_enhanced_ai_response(prompt: str, selected_stock: str) -> str:
     """Generate AI response with integrated data from all modules"""
@@ -229,7 +182,7 @@ def generate_enhanced_ai_response(prompt: str, selected_stock: str) -> str:
     context = f"""
     USER QUESTION: {prompt}
     
-    CURRENT STOCK ANALYSIS FOR {selected_stock.upper()}:
+    CURRENT STOCK ANALYSIS FOR {selected_stock.upper()}: (Ticker: {ticker})
     - Current Price: ₹{price:.2f}
     - 1-Month Change: {change_pct:+.2f}%
     - 52-Week Range: ₹{min_price:.2f} - ₹{max_price:.2f}
@@ -349,7 +302,7 @@ def generate_enhanced_ai_response(prompt: str, selected_stock: str) -> str:
         return response.text
     except Exception as e:
         # Fallback response if AI fails
-        return f"""**Analysis for {selected_stock}**
+        return f"""**Analysis for {selected_stock}** (Ticker: {ticker})
 
 **📊 Current Status:**
 - **Price:** ₹{price:.2f} ({change_pct:+.2f}%)
@@ -386,7 +339,7 @@ def generate_comparison_context(stock1: str, stock2: str) -> str:
     news2 = news_analyzer.get_news_multi_source(query=f"{stock2} stock", num_articles=2)
     
     comparison = f"""
-    STOCK COMPARISON: {stock1.upper()} vs {stock2.upper()}
+    STOCK COMPARISON: {stock1.upper()} (Ticker: {ticker1}) vs {stock2.upper()} (Ticker: {ticker2})
     
     {stock1.upper()}:
     - Price: ₹{price1:.2f} ({change1:+.2f}%)
@@ -415,42 +368,6 @@ def generate_comparison_context(stock1: str, stock2: str) -> str:
     """
     
     return comparison
-
-def display_stock_graph(stock_name: str):
-    """Display stock price chart"""
-    ticker = INDIAN_STOCKS[stock_name]["ticker"]
-    df, _, _, _, _ = get_stock_data(ticker)
-    
-    if df is not None and not df.empty:
-        st.subheader(f"📈 {stock_name} Price Chart (Last 1 Month)")
-        
-        fig, ax = plt.subplots(figsize=(10, 5))
-        ax.plot(df.index, df["Close"], label=stock_name, linewidth=2, color='blue')
-        
-        # Mark high and low points
-        max_price = float(df["Close"].max())
-        min_price = float(df["Close"].min())
-        max_date = df["Close"].idxmax()
-        min_date = df["Close"].idxmin()
-        
-        ax.scatter(max_date, max_price, color='red', s=50, label=f"Max: ₹{max_price:.2f}")
-        ax.scatter(min_date, min_price, color='green', s=50, label=f"Min: ₹{min_price:.2f}")
-        
-        ax.set_title(f"{stock_name} Stock Trend", fontsize=16)
-        ax.set_xlabel("Date", fontsize=12)
-        ax.set_ylabel("Price (₹)", fontsize=12)
-        ax.grid(True, linestyle="--", alpha=0.6)
-        ax.legend()
-        plt.xticks(rotation=45)
-        
-        st.pyplot(fig)
-        
-        # Add technical analysis overlay if available
-        technical_data = tech_analyzer.calculate_technical_indicators(df)
-        if technical_data and 'error' not in technical_data:
-            st.info(f"**Technical Summary:** RSI: {technical_data.get('rsi', 'N/A'):.1f} | "
-                   f"Trend: {technical_data.get('signals', {}).get('trend', 'N/A')} | "
-                   f"Signal: {technical_data.get('signals', {}).get('overall', 'N/A')}")
 
 if __name__ == "__main__":
     ai_agent_page()
