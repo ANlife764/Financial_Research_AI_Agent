@@ -6,10 +6,9 @@ from datetime import datetime, timedelta
 import streamlit as st
 from typing import Dict, Optional, Tuple
 import time
-#import requests_cache
 
-# Cache for API calls
-#session = requests_cache.CachedSession('yfinance.cache', expire_after=300)
+# REMOVED: requests_cache import and session creation
+# yfinance now requires curl_cffi which doesn't work with cached sessions
 
 # Indian stock mappings with sectors
 INDIAN_STOCKS = {
@@ -22,29 +21,35 @@ INDIAN_STOCKS = {
 }
 
 def get_stock_data(ticker: str, period: str = "1mo", interval: str = "1d") -> Tuple[Optional[pd.DataFrame], float, float, float, float]:
-    """Get stock data with caching and error handling"""
+    """Get stock data with error handling"""
     try:
-        stock = yf.Ticker(ticker)
+
+        # REMOVED: session parameter
+        stock = yf.Ticker(ticker)  
         df = stock.history(period=period, interval=interval)
         
-        if df.empty:
+        if df.empty or len(df) < 2:
+            # Return fallback data
             return None, 0, 0, 0, 0
             
         latest_price = float(df["Close"].iloc[-1])
-        change_pct = float((df["Close"].iloc[-1] - df["Close"].iloc[0]) / df["Close"].iloc[0] * 100)
+        prev_price = float(df["Close"].iloc[-2])
+        change_pct = ((latest_price - prev_price) / prev_price * 100) if prev_price > 0 else 0
         max_price = float(df["Close"].max())
         min_price = float(df["Close"].min())
         
         return df, latest_price, change_pct, max_price, min_price
         
     except Exception as e:
-        st.error(f"Error fetching data for {ticker}: {str(e)}")
+        # Don't show error in production
         return None, 0, 0, 0, 0
 
 def get_financial_metrics(stock_name: str, ticker: str) -> Dict:
     """Get comprehensive financial metrics for analysis"""
     try:
+
         stock = yf.Ticker(ticker)
+
         info = stock.info
         
         # Basic financial metrics
@@ -85,8 +90,17 @@ def get_market_status() -> Dict:
         is_market_open = market_open <= current_time <= market_close
         is_weekend = datetime.now().weekday() >= 5
         
+        # Check if it's a holiday (simplified check)
+        today = datetime.now().date()
+        holidays = [
+            datetime(today.year, 1, 26).date(),  # Republic Day
+            datetime(today.year, 8, 15).date(),  # Independence Day
+            datetime(today.year, 10, 2).date(),  # Gandhi Jayanti
+        ]
+        is_holiday = today in holidays
+        
         return {
-            "is_open": is_market_open and not is_weekend,
+            "is_open": is_market_open and not is_weekend and not is_holiday,
             "next_open": "Monday 9:15 AM" if is_weekend else "Tomorrow 9:15 AM"
         }
         
