@@ -204,6 +204,72 @@ class NewsSentimentAnalyzer:
         
         return unique_articles
     
+    # In utils/news_sentiment.py - Add this method to the NewsSentimentAnalyzer class:
+
+    def get_market_sentiment_summary(self) -> Dict:
+        """Get overall market sentiment summary"""
+        try:
+            # Get market news
+            news_articles = self.get_news_multi_source(
+                query="Indian stock market sensex nifty",
+                num_articles=10
+            )
+            
+            if not news_articles or not isinstance(news_articles, list):
+                # Return default sentiment if no articles
+                return {
+                    "overall_sentiment": "Neutral", 
+                    "average_score": 0, 
+                    "positive_articles": 0, 
+                    "negative_articles": 0, 
+                    "neutral_articles": 0, 
+                    "total_articles": 0
+                }
+            
+            # Calculate sentiment statistics
+            sentiment_counts = {"Positive": 0, "Negative": 0, "Neutral": 0}
+            total_sentiment_score = 0
+            
+            for article in news_articles:
+                if isinstance(article, dict):
+                    sentiment = article.get("sentiment", "Neutral")
+                    score = article.get("sentiment_score", 0)
+                    
+                    if sentiment in sentiment_counts:
+                        sentiment_counts[sentiment] += 1
+                        total_sentiment_score += score
+            
+            total_articles = len(news_articles)
+            avg_sentiment = total_sentiment_score / total_articles if total_articles > 0 else 0
+            
+            # Determine overall market sentiment
+            if avg_sentiment >= 0.1:
+                overall_sentiment = "Bullish"
+            elif avg_sentiment <= -0.1:
+                overall_sentiment = "Bearish"
+            else:
+                overall_sentiment = "Neutral"
+            
+            return {
+                "overall_sentiment": overall_sentiment,
+                "average_score": round(avg_sentiment, 3),
+                "positive_articles": sentiment_counts["Positive"],
+                "negative_articles": sentiment_counts["Negative"],
+                "neutral_articles": sentiment_counts["Neutral"],
+                "total_articles": total_articles
+            }
+            
+        except Exception as e:
+            # Return default on error
+            return {
+                "overall_sentiment": "Neutral", 
+                "average_score": 0, 
+                "positive_articles": 0, 
+                "negative_articles": 0, 
+                "neutral_articles": 0, 
+                "total_articles": 0
+            }
+
     # Keep your existing analyze_sentiment and other methods...
     def analyze_sentiment(self, text: str) -> Dict:
         """Analyze sentiment using both TextBlob and VADER"""
