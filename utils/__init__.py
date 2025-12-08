@@ -3,6 +3,7 @@ from .stock_data import *
 from .news_sentiment import *
 from .technical_analysis import *
 from .portfolio_manager import *
+from .portfolio_calc import *
 
 __all__ = [
     'get_stock_data',
