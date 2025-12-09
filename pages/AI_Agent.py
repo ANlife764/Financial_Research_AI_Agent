@@ -2,7 +2,6 @@
 import streamlit as st
 import google.generativeai as genai
 import os
-import io
 import matplotlib.pyplot as plt
 import pandas as pd
 from datetime import datetime, timedelta
@@ -12,7 +11,7 @@ from utils.technical_analysis import tech_analyzer
 from utils.portfolio_manager import portfolio_manager
 
 # Configure Gemini AI
-genai.configure(api_key=os.environ.get("GOOGLE_API_KEY"))
+genai.configure(api_key=st.secrets.get("GOOGLE_API_KEY", os.environ.get("GOOGLE_API_KEY")))
 model = genai.GenerativeModel("models/gemini-2.5-flash")
 
 def ai_agent_page():
@@ -218,7 +217,13 @@ def generate_enhanced_ai_response(prompt: str, selected_stock: str) -> str:
     df, price, change_pct, max_price, min_price = get_stock_data(ticker)
     financials = get_financial_metrics(selected_stock, ticker)
     technical_data = tech_analyzer.calculate_technical_indicators(df) if df is not None else {}
-    news_data = news_analyzer.get_stock_specific_news(selected_stock, num_articles=3)
+    
+    # Get news sentiment using the method from news_sentiment.py
+    try:
+        news_data = news_analyzer.get_news_multi_source(query=f"{selected_stock} stock", num_articles=3)
+    except AttributeError:
+        # Fallback to market news if stock-specific news not available
+        news_data = news_analyzer.get_news_multi_source(query="Indian stock market", num_articles=3)
     
     # Build comprehensive context
     context = f"""
@@ -243,17 +248,48 @@ def generate_enhanced_ai_response(prompt: str, selected_stock: str) -> str:
     - MACD: {technical_data.get('macd', 'N/A'):.2f}
     """
     
-    # Add news sentiment if available
-    if news_data:
-        sentiment_scores = [news['sentiment_score'] for news in news_data]
-        avg_sentiment = sum(sentiment_scores) / len(sentiment_scores) if sentiment_scores else 0
-        sentiment_label = "Positive" if avg_sentiment > 0.1 else "Negative" if avg_sentiment < -0.1 else "Neutral"
+    # Add news sentiment if available - FIXED from news_sentiment.py
+    if news_data and isinstance(news_data, list) and len(news_data) > 0:
+        # Calculate average sentiment score
+        sentiment_scores = []
+        for news in news_data:
+            if isinstance(news, dict):
+                # Check for different possible keys based on news_sentiment.py structure
+                score = news.get('sentiment_score', 
+                               news.get('combined',  # Old key
+                                       news.get('score', 0)))  # Fallback
+                if isinstance(score, (int, float)):
+                    sentiment_scores.append(score)
         
-        context += f"""
+        if sentiment_scores:
+            avg_sentiment = sum(sentiment_scores) / len(sentiment_scores)
+            sentiment_label = "Positive" if avg_sentiment > 0.1 else "Negative" if avg_sentiment < -0.1 else "Neutral"
+            
+            context += f"""
     NEWS SENTIMENT:
     - Overall Sentiment: {sentiment_label} (Score: {avg_sentiment:.2f})
     - Recent News: {len(news_data)} articles analyzed
     """
+            # Add top news headlines
+            context += "    - Top Headlines:\n"
+            for i, news in enumerate(news_data[:2], 1):
+                if isinstance(news, dict):
+                    title = news.get('title', 'No title')
+                    sentiment = news.get('sentiment', 'Neutral')
+                    context += f"      {i}. {title} [{sentiment}]\n"
+    
+    # Add market sentiment if available - using the get_market_sentiment_summary method from news_sentiment.py
+    try:
+        market_sentiment = news_analyzer.get_market_sentiment_summary()
+        if market_sentiment:
+            context += f"""
+    MARKET SENTIMENT OVERVIEW:
+    - Overall Market: {market_sentiment.get('overall_sentiment', 'Neutral')}
+    - Positive Articles: {market_sentiment.get('positive_articles', 0)}
+    - Negative Articles: {market_sentiment.get('negative_articles', 0)}
+    """
+    except Exception:
+        pass
     
     # Add portfolio context if available
     try:
@@ -282,9 +318,7 @@ def generate_enhanced_ai_response(prompt: str, selected_stock: str) -> str:
         else:
             context += "\nCOMPARISON NOTE: Please specify which two stocks you want to compare."
     
-    if "graph" in prompt_lower or "chart" in prompt_lower or "plot" in prompt_lower:
-        st.session_state.show_graph = True
-        st.session_state.graph_stock = selected_stock
+    if any(word in prompt_lower for word in ["graph", "chart", "plot", "visual"]):
         context += "\nCHART NOTE: I've displayed the price chart for visual analysis."
     
     # Generate AI response
@@ -305,6 +339,8 @@ def generate_enhanced_ai_response(prompt: str, selected_stock: str) -> str:
     
     Always be honest about limitations and suggest consulting professional advisors for major decisions.
     
+    Now respond to the user's query: "{prompt}"
+    
     Response:
     """
     
@@ -312,7 +348,23 @@ def generate_enhanced_ai_response(prompt: str, selected_stock: str) -> str:
         response = model.generate_content(ai_prompt)
         return response.text
     except Exception as e:
-        return f"I understand you're asking about {selected_stock}. Currently trading at ₹{price:.2f} ({change_pct:+.2f}%). For detailed AI analysis, please ensure your Gemini API key is properly configured."
+        # Fallback response if AI fails
+        return f"""**Analysis for {selected_stock}**
+
+**📊 Current Status:**
+- **Price:** ₹{price:.2f} ({change_pct:+.2f}%)
+- **52-Week Range:** ₹{min_price:.2f} - ₹{max_price:.2f}
+- **Sector:** {financials.get('sector', 'N/A')}
+- **Market Cap:** {financials.get('market_cap', 'N/A')}
+- **P/E Ratio:** {financials.get('pe_ratio', 'N/A')}
+
+**💡 Insights:**
+Based on the data, {selected_stock} is currently {'trending upward' if change_pct > 0 else 'experiencing a decline' if change_pct < 0 else 'trading sideways'}. 
+
+**🎯 Recommendation:**
+{('Consider this as a potential buying opportunity' if change_pct < -5 else 'Monitor for entry points' if -5 <= change_pct < 0 else 'Hold position' if 0 <= change_pct < 5 else 'Consider profit booking' if change_pct >= 5 else 'Monitor closely')}.
+
+*Note: For detailed AI-powered analysis, ensure your Gemini API key is properly configured.*"""
 
 def generate_comparison_context(stock1: str, stock2: str) -> str:
     """Generate comparison context for two stocks"""
@@ -329,7 +381,11 @@ def generate_comparison_context(stock1: str, stock2: str) -> str:
     tech1 = tech_analyzer.calculate_technical_indicators(df1) if df1 is not None else {}
     tech2 = tech_analyzer.calculate_technical_indicators(df2) if df2 is not None else {}
     
-    return f"""
+    # Get news for both stocks
+    news1 = news_analyzer.get_news_multi_source(query=f"{stock1} stock", num_articles=2)
+    news2 = news_analyzer.get_news_multi_source(query=f"{stock2} stock", num_articles=2)
+    
+    comparison = f"""
     STOCK COMPARISON: {stock1.upper()} vs {stock2.upper()}
     
     {stock1.upper()}:
@@ -346,6 +402,19 @@ def generate_comparison_context(stock1: str, stock2: str) -> str:
     - Technical Signal: {tech2.get('signals', {}).get('overall', 'N/A')}
     - Sector: {financials2.get('sector', 'N/A')}
     """
+    
+    # Add sentiment comparison
+    if news1 and news2:
+        sentiment1 = sum([n.get('sentiment_score', 0) for n in news1 if isinstance(n, dict)]) / len(news1) if len(news1) > 0 else 0
+        sentiment2 = sum([n.get('sentiment_score', 0) for n in news2 if isinstance(n, dict)]) / len(news2) if len(news2) > 0 else 0
+        
+        comparison += f"""
+    SENTIMENT COMPARISON:
+    - {stock1}: {'Positive' if sentiment1 > 0.1 else 'Negative' if sentiment1 < -0.1 else 'Neutral'} ({sentiment1:.2f})
+    - {stock2}: {'Positive' if sentiment2 > 0.1 else 'Negative' if sentiment2 < -0.1 else 'Neutral'} ({sentiment2:.2f})
+    """
+    
+    return comparison
 
 def display_stock_graph(stock_name: str):
     """Display stock price chart"""

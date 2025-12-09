@@ -35,3 +35,4 @@ def calc_SIP():
     st.divider()
     if st.button("← Back to Portfolio"):
         st.session_state.current_page = "Portfolio"
+        st.rerun()

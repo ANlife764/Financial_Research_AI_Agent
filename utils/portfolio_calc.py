@@ -1,5 +1,5 @@
-# utils/portfolio_calc.py
 
+# utils/portfolio_calc.py
 import numpy as np
 import numpy_financial as npf
 import pandas as pd
@@ -19,11 +19,13 @@ def calculate_sip_future_value(monthly_sip, annual_return_percent, years):
     
     # Calculate Future Value (FV)
     # 'when="end"' assumes payments at the end of the month
+
     fv = npf.fv(rate, nper, pmt, pv=0, when='end')
     return round(fv, 2)
 
 def calculate_monthly_sip_required(goal_amount, annual_return_percent, years):
     """Calculates the monthly SIP required to reach a specific goal."""
+
     # Convert annual return to monthly rate
     rate = (annual_return_percent / 100) / 12
     # Total number of periods (months)
@@ -32,6 +34,7 @@ def calculate_monthly_sip_required(goal_amount, annual_return_percent, years):
     fv = -goal_amount
     
     # Calculate Payment (PMT)
+
     pmt = npf.pmt(rate, nper, pv=0, fv=fv, when='end')
     return round(pmt, 2)
 
@@ -116,3 +119,4 @@ def calculate_capital_gains(transactions_df):
     }
 
     return pd.DataFrame(gains), tax_summary
+

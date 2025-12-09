@@ -285,4 +285,3 @@ def portfolio_page():
         else:
             st.info("No holdings to display")
             
-
