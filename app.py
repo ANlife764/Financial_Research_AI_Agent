@@ -1,6 +1,6 @@
 # app.py
 import streamlit as st
-<<<<<<< HEAD
+
 # FIX FOR MULTITASKING IMPORT ERROR
 import sys
 import types
@@ -15,9 +15,6 @@ except ImportError:
     multitasking.task = lambda func: func
     sys.modules['multitasking'] = multitasking
 
-=======
-import pandas as pd
->>>>>>> origin/main
 st.set_page_config(
     page_title="AI Financial Agent",
     page_icon="💹",
