@@ -1,0 +1,34 @@
+[
+    {
+        "ticker": "WSTCSTPAPR",
+        "name": "West Coast Paper Mills Limited",
+        "quantity": 10,
+        "price": 402.45001220703125,
+        "date": "2025-12-09",
+        "Type": "Sell"
+    },
+    {
+        "ticker": "RELIANCE",
+        "name": "Reliance Industries Limited",
+        "quantity": 37,
+        "price": 1529.4,
+        "date": "2025-12-09",
+        "Type": "Buy"
+    },
+    {
+        "ticker": "ICICIBANK",
+        "name": "ICICI Bank Limited",
+        "quantity": 40,
+        "price": 1375.2,
+        "date": "2025-12-09",
+        "Type": "Buy"
+    },
+    {
+        "ticker": "TCS",
+        "name": "Tata Consultancy Services Limited",
+        "quantity": 9,
+        "price": 3000.0,
+        "date": "2025-10-09",
+        "Type": "Buy"
+    }
+]
