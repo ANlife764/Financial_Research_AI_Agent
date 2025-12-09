@@ -1,5 +1,18 @@
 # app.py
 import streamlit as st
+# FIX FOR MULTITASKING IMPORT ERROR
+import sys
+import types
+
+# Create dummy multitasking module if import fails
+try:
+    import multitasking
+except ImportError:
+    print("Creating dummy multitasking module...")
+    multitasking = types.ModuleType('multitasking')
+    multitasking.disable = lambda: None
+    multitasking.task = lambda func: func
+    sys.modules['multitasking'] = multitasking
 
 st.set_page_config(
     page_title="AI Financial Agent",
