@@ -155,6 +155,17 @@ def ai_agent_page():
         prompt_lower = prompt.lower()
         ticker = INDIAN_STOCKS[selected_stock]["ticker"]
         
+        # Get chat history (last 10 messages for context)
+        chat_history = ""
+        if len(st.session_state.messages) > 1:  # More than just the initial message
+            # Get last N messages (excluding current prompt)
+            history_messages = st.session_state.messages[:-1] if st.session_state.messages[-1]["role"] == "user" else st.session_state.messages
+            
+            # Limit to last 10 messages to avoid token limits
+            for msg in history_messages[-10:]:
+                role = "User" if msg["role"] == "user" else "Assistant"
+                chat_history += f"{role}: {msg['content']}\n"
+        
         # Get comprehensive data
         df, price, change_pct, max_price, min_price = get_stock_data(ticker)
         financials = get_financial_metrics(selected_stock, ticker)
@@ -168,7 +179,10 @@ def ai_agent_page():
         
         # Build comprehensive context
         context = f"""
-        USER QUESTION: {prompt}
+        CHAT HISTORY:
+        {chat_history if chat_history else "This is the first message in the conversation."}
+        
+        CURRENT USER QUESTION: {prompt}
         
         CURRENT STOCK ANALYSIS FOR {selected_stock.upper()}: (Ticker: {ticker})
         - Current Price: ₹{price:.2f}
@@ -260,6 +274,12 @@ def ai_agent_page():
         {context}
         
         You are a knowledgeable, friendly financial advisor specializing in Indian stocks. 
+        You have access to the conversation history above. Use it to:
+        1. Maintain context throughout the conversation
+        2. Remember user's previous questions and preferences
+        3. Provide consistent advice based on earlier discussions
+        4. Build on previous analysis when applicable
+        
         Provide comprehensive, accurate analysis that considers:
         - Current market conditions
         - Technical indicators
@@ -267,6 +287,7 @@ def ai_agent_page():
         - News sentiment
         - Risk assessment
         - Portfolio context (if available)
+        - Previous conversation context
         
         Be analytical but conversational. If the user asks for comparisons, provide detailed side-by-side analysis.
         If they ask for investment advice, consider risk tolerance and diversification.
@@ -274,6 +295,8 @@ def ai_agent_page():
         Always be honest about limitations and suggest consulting professional advisors for major decisions.
         
         Now respond to the user's query: "{prompt}"
+        
+        IMPORTANT: Reference previous parts of the conversation when relevant to show continuity.
         
         Response:
         """
