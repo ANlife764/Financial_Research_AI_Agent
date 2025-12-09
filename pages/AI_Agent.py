@@ -445,6 +445,3 @@ def generate_comparison_context(stock1: str, stock2: str) -> str:
 
 if __name__ == "__main__":
     ai_agent_page()
-
-if __name__ == "__main__":
-    ai_agent_page()
