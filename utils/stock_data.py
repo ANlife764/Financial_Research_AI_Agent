@@ -160,3 +160,214 @@ def search_ticker_symbols(query: str) -> List[Tuple[str, str]]:
             results.append((symbol, name))
             
     return [(symbol, f"{symbol} - {name}") for symbol, name in results][:5]
+
+
+
+def get_financial_metrics(stock_name, ticker):
+    """Get comprehensive fundamental metrics with better error handling"""
+    try:
+        import yfinance as yf
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        
+        # Helper function to safely get values
+        def safe_get(key, default='N/A'):
+            value = info.get(key, default)
+            if value is None:
+                return default
+            return value
+        
+        # Format market cap
+        market_cap = safe_get('marketCap', 0)
+        if isinstance(market_cap, (int, float)) and market_cap > 0:
+            if market_cap >= 1e12:
+                formatted_market_cap = f"₹{market_cap/1e12:.2f} Lakh Cr"
+            elif market_cap >= 1e7:
+                formatted_market_cap = f"₹{market_cap/1e7:.2f} Cr"
+            else:
+                formatted_market_cap = f"₹{market_cap:,.0f}"
+        else:
+            formatted_market_cap = 'N/A'
+        
+        # Format ratios with 2 decimal places
+        pe_ratio = safe_get('trailingPE', 'N/A')
+        if isinstance(pe_ratio, (int, float)):
+            pe_ratio = f"{pe_ratio:.2f}"
+        
+        pb_ratio = safe_get('priceToBook', 'N/A')
+        if isinstance(pb_ratio, (int, float)):
+            pb_ratio = f"{pb_ratio:.2f}"
+        
+        # Format percentages
+        def format_percent(value, default='N/A'):
+            if isinstance(value, (int, float)):
+                return f"{value:.2f}%" if abs(value) < 100 else f"{value:.0f}%"
+            return default
+        
+        roe = format_percent(safe_get('returnOnEquity'))
+        roa = format_percent(safe_get('returnOnAssets'))
+        profit_margins = format_percent(safe_get('profitMargins'))
+        operating_margins = format_percent(safe_get('operatingMargins'))
+        
+        # Revenue growth (already in decimal form, convert to %)
+        revenue_growth = safe_get('revenueGrowth', 'N/A')
+        if isinstance(revenue_growth, (int, float)):
+            revenue_growth = f"{revenue_growth*100:.2f}%"
+        
+        # Dividend yield (already in decimal form)
+        dividend_yield = safe_get('dividendYield', 'N/A')
+        if isinstance(dividend_yield, (int, float)):
+            dividend_yield = f"{dividend_yield*100:.2f}%"
+        
+        # Debt to equity (show as ratio)
+        debt_to_equity = safe_get('debtToEquity', 'N/A')
+        if isinstance(debt_to_equity, (int, float)):
+            debt_to_equity = f"{debt_to_equity:.2f}"
+        
+        # Current ratio
+        current_ratio = safe_get('currentRatio', 'N/A')
+        if isinstance(current_ratio, (int, float)):
+            current_ratio = f"{current_ratio:.2f}"
+        
+        # Free cash flow (format in Cr)
+        free_cashflow = safe_get('freeCashflow', 'N/A')
+        if isinstance(free_cashflow, (int, float)) and free_cashflow != 0:
+            if abs(free_cashflow) >= 1e7:
+                free_cashflow = f"₹{free_cashflow/1e7:.2f} Cr"
+            else:
+                free_cashflow = f"₹{free_cashflow:,.0f}"
+        
+        return {
+            'market_cap': formatted_market_cap,
+            'pe_ratio': pe_ratio,
+            'pb_ratio': pb_ratio,
+            'debt_to_equity': debt_to_equity,
+            'current_ratio': current_ratio,
+            'roe': roe,
+            'roa': roa,
+            'profit_margins': profit_margins,
+            'operating_margins': operating_margins,
+            'revenue_growth': revenue_growth,
+            'dividend_yield': dividend_yield,
+            'free_cashflow': free_cashflow,
+            'sector': safe_get('sector', 'N/A'),
+            'industry': safe_get('industry', 'N/A'),
+            'beta': safe_get('beta', 'N/A')
+        }
+        
+    except Exception as e:
+        print(f"Error getting financial metrics for {ticker}: {e}")
+        # Return a dictionary with N/A values but proper structure
+        return {
+            'market_cap': 'N/A',
+            'pe_ratio': 'N/A',
+            'pb_ratio': 'N/A',
+            'debt_to_equity': 'N/A',
+            'current_ratio': 'N/A',
+            'roe': 'N/A',
+            'roa': 'N/A',
+            'profit_margins': 'N/A',
+            'operating_margins': 'N/A',
+            'revenue_growth': 'N/A',
+            'dividend_yield': 'N/A',
+            'free_cashflow': 'N/A',
+            'sector': 'N/A',
+            'industry': 'N/A',
+            'beta': 'N/A'
+        }
+def get_fundamental_metrics(ticker):
+    """Get comprehensive fundamental metrics for Indian stocks"""
+    try:
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        
+        # Format market cap in Indian notation
+        market_cap = info.get('marketCap', 0)
+        formatted_market_cap = format_market_cap(market_cap)
+        
+        # Calculate key ratios
+        pe_ratio = info.get('trailingPE', 'N/A')
+        pb_ratio = info.get('priceToBook', 'N/A')
+        
+        # Financial health metrics
+        debt_to_equity = info.get('debtToEquity', 'N/A')
+        current_ratio = info.get('currentRatio', 'N/A')
+        
+        # Profitability metrics
+        roe = info.get('returnOnEquity', 'N/A')
+        roa = info.get('returnOnAssets', 'N/A')
+        profit_margins = info.get('profitMargins', 'N/A')
+        operating_margins = info.get('operatingMargins', 'N/A')
+        
+        # Growth metrics
+        revenue_growth = info.get('revenueGrowth', 'N/A')
+        earnings_growth = info.get('earningsGrowth', 'N/A')
+        
+        # Dividend information
+        dividend_yield = info.get('dividendYield', 'N/A')
+        if dividend_yield and isinstance(dividend_yield, float):
+            dividend_yield = f"{dividend_yield * 100:.2f}%"
+        
+        return {
+            'market_cap': formatted_market_cap,
+            'pe_ratio': pe_ratio,
+            'pb_ratio': pb_ratio,
+            'debt_to_equity': debt_to_equity,
+            'current_ratio': current_ratio,
+            'roe': roe,
+            'roa': roa,
+            'profit_margins': profit_margins,
+            'operating_margins': operating_margins,
+            'revenue_growth': revenue_growth,
+            'earnings_growth': earnings_growth,
+            'dividend_yield': dividend_yield,
+            'sector': info.get('sector', 'N/A'),
+            'industry': info.get('industry', 'N/A'),
+            'beta': info.get('beta', 'N/A'),
+            'free_cashflow': info.get('freeCashflow', 'N/A'),
+            'total_debt': info.get('totalDebt', 'N/A')
+        }
+    except Exception as e:
+        print(f"Error getting fundamentals for {ticker}: {e}")
+        return {'error': str(e)}
+
+def format_market_cap(market_cap):
+    """Format market cap in Indian notation (Cr, Lakh Cr)"""
+    if not market_cap or market_cap == 'N/A':
+        return 'N/A'
+    
+    # Convert to Indian Rupees (assuming market cap is in INR from yfinance)
+    if market_cap >= 1e12:  # More than 1 lakh crore
+        return f"₹{market_cap/1e12:.2f} Lakh Cr"
+    elif market_cap >= 1e7:  # More than 1 crore
+        return f"₹{market_cap/1e7:.2f} Cr"
+    else:
+        return f"₹{market_cap:,.0f}"
+
+def get_indian_sector_performance():
+    """Get performance of major Indian sectors"""
+    sector_etfs = {
+        'Nifty Bank': '^NSEBANK',
+        'Nifty IT': '^CNXIT',
+        'Nifty Pharma': '^CNXPHARMA',
+        'Nifty Auto': '^CNXAUTO',
+        'Nifty FMCG': '^CNXFMCG',
+        'Nifty Metal': '^CNXMETAL',
+        'Nifty Realty': '^CNXREALTY'
+    }
+    
+    sector_data = []
+    for sector_name, sector_ticker in sector_etfs.items():
+        try:
+            df = yf.download(sector_ticker, period='1d')
+            if not df.empty:
+                change = ((df['Close'].iloc[-1] - df['Open'].iloc[0]) / df['Open'].iloc[0]) * 100
+                sector_data.append({
+                    'Sector': sector_name,
+                    'Change %': f"{change:.2f}%",
+                    'Status': '📈' if change > 0 else '📉'
+                })
+        except:
+            continue
+    
+    return sector_data
