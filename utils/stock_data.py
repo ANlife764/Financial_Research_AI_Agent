@@ -1,14 +1,10 @@
-# utils/stock_data.py - CORRECTED VERSION
+# utils/stock_data.py - FINAL CONSOLIDATED VERSION
 import yfinance as yf
 import pandas as pd
 import sqlite3
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time # Ensure 'time' is imported from datetime
 import streamlit as st
-from typing import Dict, Optional, Tuple
-import time
-
-# REMOVED: requests_cache import and session creation
-# yfinance now requires curl_cffi which doesn't work with cached sessions
+from typing import Dict, Optional, Tuple, List # Ensure List is imported
 
 # Indian stock mappings with sectors
 INDIAN_STOCKS = {
@@ -21,14 +17,12 @@ INDIAN_STOCKS = {
 }
 
 def get_stock_data(ticker: str, period: str = "1mo", interval: str = "1d") -> Tuple[Optional[pd.DataFrame], float, float, float, float]:
-    """Get stock data with error handling"""
+    """Get stock data with error handling (Used by Home page)"""
     try:
-        # REMOVED: session parameter
-        stock = yf.Ticker(ticker)  # Don't pass session parameter
+        stock = yf.Ticker(ticker)
         df = stock.history(period=period, interval=interval)
         
         if df.empty or len(df) < 2:
-            # Return fallback data
             return None, 0, 0, 0, 0
             
         latest_price = float(df["Close"].iloc[-1])
@@ -40,17 +34,14 @@ def get_stock_data(ticker: str, period: str = "1mo", interval: str = "1d") -> Tu
         return df, latest_price, change_pct, max_price, min_price
         
     except Exception as e:
-        # Don't show error in production
         return None, 0, 0, 0, 0
 
 def get_financial_metrics(stock_name: str, ticker: str) -> Dict:
-    """Get comprehensive financial metrics for analysis"""
+    """Get comprehensive financial metrics for analysis (Used by Home page)"""
     try:
-        # REMOVED: session parameter
-        stock = yf.Ticker(ticker)  # Don't pass session parameter
+        stock = yf.Ticker(ticker)
         info = stock.info
         
-        # Basic financial metrics
         market_cap = info.get('marketCap', 'N/A')
         pe_ratio = info.get('trailingPE', 'N/A')
         
@@ -79,7 +70,7 @@ def get_financial_metrics(stock_name: str, ticker: str) -> Dict:
         return {"error": str(e)}
 
 def get_market_status() -> Dict:
-    """Check Indian market status"""
+    """Check Indian market status (Used by Home page)"""
     try:
         current_time = datetime.now().time()
         market_open = time(9, 15)  # 9:15 AM IST
@@ -104,3 +95,68 @@ def get_market_status() -> Dict:
         
     except Exception as e:
         return {"error": str(e), "is_open": False}
+
+# --- FUNCTIONS ADDED FOR PAGES/PORTFOLIO.PY COMPATIBILITY ---
+
+# Ticker Search Simulation Dictionary (Needed for Portfolio Tab 1)
+TICKER_SIMULATION_DATA = {
+    "HDFC BANK": "HDFCBANK.NS",
+    "RELIANCE IND.": "RELIANCE.NS",
+    "TATA CONSULTANCY": "TCS.NS",
+    "INFOSYS": "INFY.NS",
+    "STATE BANK": "SBIN.NS",
+    "MARUTI": "MARUTI.NS",
+}
+
+def get_ltp_and_change(ticker: str, fallback_price: float) -> Tuple[float, str, str]:
+    """
+    Fetches the last traded price (LTP) and calculates the change relative to 
+    the opening price, returning formatting details for the UI. (Used by Portfolio)
+    """
+    try:
+        stock = yf.Ticker(ticker)
+        # Fetching 1 day of intraday data (5m interval)
+        data = stock.history(period="1d", interval="5m") 
+        
+        if data.empty or data['Open'].empty:
+            ltp = fallback_price * 1.10
+            prev_close = fallback_price
+        else:
+            ltp = data['Close'].iloc[-1]
+            prev_close = data['Open'].iloc[0] 
+            
+            if prev_close == 0:
+                prev_close = fallback_price 
+
+        change = ltp - prev_close
+        
+        if change > 0:
+            color = "green"
+            arrow = "▲"
+        elif change < 0:
+            color = "red"
+            arrow = "▼"
+        else:
+            color = "gray"
+            arrow = "—"
+            
+        return round(ltp, 2), color, arrow
+
+    except Exception as e:
+        return round(fallback_price * 1.10, 2), "gray", "—"
+        
+def search_ticker_symbols(query: str) -> List[Tuple[str, str]]:
+    """
+    Searches for stock ticker symbols based on a query using simulation data. (Used by Portfolio)
+    """
+    if not query or len(query) < 2:
+        return []
+        
+    query = query.upper()
+    
+    results = []
+    for name, symbol in TICKER_SIMULATION_DATA.items():
+        if query in name or query in symbol:
+            results.append((symbol, name))
+            
+    return [(symbol, f"{symbol} - {name}") for symbol, name in results][:5]
