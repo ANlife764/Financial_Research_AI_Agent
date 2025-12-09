@@ -10,6 +10,7 @@ from typing import Dict, List, Tuple
 import time
 import json
 import random
+import os
 
 # Initialize sentiment analyzer
 vader_analyzer = SentimentIntensityAnalyzer()
@@ -17,8 +18,8 @@ vader_analyzer = SentimentIntensityAnalyzer()
 class NewsSentimentAnalyzer:
     def __init__(self):
         # Try multiple API sources
-        self.gnews_key = st.secrets.get("GNEWS_API_KEY", "")
-        self.newsapi_key = st.secrets.get("NEWSAPI_KEY", "")
+        self.gnews_key = os.environ.get("GNEWS_API_KEY", "")
+        self.gnews_key = os.environ.get("NEWSAPI_KEY", "")
         
         # We'll also use RSS feeds and public APIs as fallbacks
         self.rss_feeds = [
