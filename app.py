@@ -1,7 +1,6 @@
 # app.py
 import streamlit as st
-
-# FIX FOR MULTITASKING IMPORT ERROR
+import pandas as pd
 import sys
 import types
 
