@@ -7,14 +7,123 @@ import streamlit as st
 from typing import Dict, Optional, Tuple, List # Ensure List is imported
 
 # Indian stock mappings with sectors
-INDIAN_STOCKS = {
-    "Reliance": {"ticker": "RELIANCE.NS", "sector": "Energy"},
-    "TCS": {"ticker": "TCS.NS", "sector": "IT"},
-    "Infosys": {"ticker": "INFY.NS", "sector": "IT"},
-    "HDFC Bank": {"ticker": "HDFCBANK.NS", "sector": "Banking"},
-    "ICICI Bank": {"ticker": "ICICIBANK.NS", "sector": "Banking"},
-    "Bajaj Finance": {"ticker": "BAJFINANCE.NS", "sector": "Financial Services"}
-}
+def get_default_stocks():
+    """Return default stock dictionary"""
+    return {
+        "Reliance": {"ticker": "RELIANCE.NS", "sector": "Energy"},
+        "TCS": {"ticker": "TCS.NS", "sector": "IT"},
+        "Infosys": {"ticker": "INFY.NS", "sector": "IT"},
+        "HDFC Bank": {"ticker": "HDFCBANK.NS", "sector": "Banking"},
+        "ICICI Bank": {"ticker": "ICICIBANK.NS", "sector": "Banking"},
+        "Bajaj Finance": {"ticker": "BAJFINANCE.NS", "sector": "Financial Services"}
+    }
+
+# In stock_data.py - REPLACE the current INDIAN_STOCKS
+
+def load_all_indian_stocks(csv_path="EQUITY_L.csv"):
+    """Load all Indian stocks from CSV with intelligent caching"""
+    try:
+        df = pd.read_csv(csv_path)
+        
+        # Clean column names (handle different CSV formats)
+        df.columns = df.columns.str.strip().str.upper()
+        
+        # Find relevant columns
+        symbol_col = None
+        name_col = None
+        
+        for col in df.columns:
+            if 'SYMBOL' in col or 'TICKER' in col or 'CODE' in col:
+                symbol_col = col
+            elif 'NAME' in col or 'COMPANY' in col or 'SECURITY' in col:
+                name_col = col
+        
+        # If columns not found, use reasonable defaults
+        if not symbol_col or not name_col:
+            symbol_col = df.columns[0]
+            name_col = df.columns[1] if len(df.columns) > 1 else df.columns[0]
+        
+        # Clean and filter data
+        stocks = {}
+        for _, row in df.iterrows():
+            symbol = str(row[symbol_col]).strip()
+            name = str(row[name_col]).strip()
+            
+            # Skip invalid entries
+            if (not symbol or len(symbol) < 2 or 
+                not name or len(name) < 3 or
+                symbol.upper() == 'NAN' or name.upper() == 'NAN'):
+                continue
+            
+            # Add .NS suffix for NSE
+            ticker = f"{symbol}.NS"
+            
+            # Determine sector intelligently
+            sector = determine_sector(name, symbol)
+            
+            stocks[name] = {
+                "ticker": ticker,
+                "symbol": symbol,
+                "sector": sector,
+                "search_key": f"{name.lower()} {symbol.lower()} {ticker.lower()}"
+            }
+        
+        return stocks
+        
+    except Exception as e:
+        print(f"Error loading stocks from {csv_path}: {e}")
+        return get_default_stocks()
+
+def determine_sector(name, symbol):
+    """Intelligently determine sector from company name"""
+    name_lower = name.lower()
+    symbol_lower = symbol.lower()
+    
+    # Banking/Finance
+    if any(word in name_lower for word in ['bank', 'finance', 'capital', 'credit', 'housing', 'loan']):
+        return "Banking/Finance"
+    
+    # IT/Tech
+    if any(word in name_lower for word in ['tech', 'software', 'consultancy', 'digital', 'info', 'data']):
+        return "IT/Tech"
+    
+    # Pharma/Healthcare
+    if any(word in name_lower for word in ['pharma', 'health', 'medical', 'life', 'biotech', 'laborator']):
+        return "Pharma/Healthcare"
+    
+    # Automobile
+    if any(word in name_lower for word in ['auto', 'motor', 'vehicle', 'car', 'cycle']):
+        return "Automobile"
+    
+    # Energy
+    if any(word in name_lower for word in ['power', 'energy', 'electric', 'oil', 'gas', 'petro']):
+        return "Energy"
+    
+    # Metals/Mining
+    if any(word in name_lower for word in ['steel', 'metal', 'mining', 'aluminum', 'copper', 'iron']):
+        return "Metals/Mining"
+    
+    # Telecom
+    if any(word in name_lower for word in ['telecom', 'communication', 'network', 'airtel']):
+        return "Telecom"
+    
+    # FMCG
+    if any(word in name_lower for word in ['consumer', 'food', 'beverage', 'agro', 'paint']):
+        return "FMCG"
+    
+    # Infrastructure
+    if any(word in name_lower for word in ['infra', 'construction', 'engineer', 'project']):
+        return "Infrastructure"
+    
+    return "Other"
+
+# Cache the stock data (loads once per session)
+@st.cache_data(ttl=3600)
+def get_cached_stocks():
+    return load_all_indian_stocks()
+
+# Global variable
+INDIAN_STOCKS = get_cached_stocks()
 
 def get_stock_data(ticker: str, period: str = "1mo", interval: str = "1d") -> Tuple[Optional[pd.DataFrame], float, float, float, float]:
     """Get stock data with error handling (Used by Home page)"""
