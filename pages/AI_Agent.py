@@ -17,9 +17,145 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
+@st.cache_data(ttl=3600)
+def load_stocks_for_agent():
+    from utils.stock_data import get_cached_stocks
+    return get_cached_stocks()
+
+# Then use it
+INDIAN_STOCKS = load_stocks_for_agent()
+
 # Configure Gemini AI
 genai.configure(api_key=st.secrets.get("GOOGLE_API_KEY", os.environ.get("GOOGLE_API_KEY")))
 model = genai.GenerativeModel("models/gemini-2.5-flash")
+
+# In AI_Agent.py - Add this function at the top
+
+def google_style_stock_search(stocks_dict, label="🔍 Search Stock", key="google_search"):
+    """
+    Google-style search with autocomplete suggestions
+    Type and see suggestions appear below
+    """
+    # Initialize session state
+    if f"{key}_query" not in st.session_state:
+        st.session_state[f"{key}_query"] = ""
+    
+    if f"{key}_selected" not in st.session_state:
+        first_stock = list(stocks_dict.keys())[0]
+        st.session_state[f"{key}_selected"] = first_stock
+    
+    if f"{key}_suggestions" not in st.session_state:
+        st.session_state[f"{key}_suggestions"] = []
+    
+    # Create search box
+    search_query = st.text_input(
+        label,
+        value=st.session_state[f"{key}_query"],
+        placeholder="Search for a stock (company name or symbol)...",
+        key=f"{key}_input"
+    )
+    
+    # Update suggestions when query changes
+    if search_query != st.session_state[f"{key}_query"]:
+        st.session_state[f"{key}_query"] = search_query
+        
+        if search_query:
+            query = search_query.lower().strip()
+            suggestions = []
+            
+            for name, info in stocks_dict.items():
+                symbol = info.get('symbol', '').lower()
+                ticker = info['ticker'].lower()
+                name_lower = name.lower()
+                
+                # Check if query matches
+                if (query in name_lower or 
+                    query in symbol or 
+                    query in ticker):
+                    
+                    # Calculate match score
+                    score = 0
+                    if name_lower.startswith(query):
+                        score += 10
+                    if symbol.startswith(query):
+                        score += 8
+                    if name_lower == query:
+                        score += 20
+                    
+                    suggestions.append({
+                        "name": name,
+                        "symbol": info.get('symbol', ''),
+                        "ticker": info['ticker'],
+                        "sector": info.get('sector', ''),
+                        "score": score
+                    })
+            
+            # Sort by relevance score
+            suggestions.sort(key=lambda x: x["score"], reverse=True)
+            st.session_state[f"{key}_suggestions"] = suggestions[:10]  # Top 10
+        else:
+            st.session_state[f"{key}_suggestions"] = []
+    
+    # Display suggestions (Google-style)
+    selected_stock = None
+    
+    if st.session_state[f"{key}_suggestions"]:
+        st.markdown("**Suggestions:**")
+        
+        # Create columns for better layout
+        cols = st.columns([1, 1, 1, 1])
+        col_idx = 0
+        
+        for idx, suggestion in enumerate(st.session_state[f"{key}_suggestions"]):
+            with cols[col_idx]:
+                # Create a button for each suggestion
+                display_text = f"**{suggestion['name']}**"
+                if suggestion['symbol']:
+                    display_text += f"\n`{suggestion['symbol']}`"
+                
+                # Create a unique key for each button
+                button_key = f"{key}_suggestion_{idx}"
+                
+                if st.button(
+                    display_text,
+                    key=button_key,
+                    use_container_width=True,
+                    help=f"{suggestion.get('sector', 'N/A')}"
+                ):
+                    selected_stock = suggestion['name']
+                    st.session_state[f"{key}_selected"] = selected_stock
+                    st.session_state[f"{key}_query"] = selected_stock  # Fill search box
+                    st.rerun()
+            
+            col_idx = (col_idx + 1) % 4
+    
+    # If a stock was selected from suggestions
+    if selected_stock:
+        st.success(f"✅ Selected: **{selected_stock}**")
+        return selected_stock, stocks_dict[selected_stock]
+    
+    # If user typed something specific and pressed Enter (or we have an exact match)
+    if search_query:
+        # Try to find exact match
+        query_lower = search_query.lower()
+        
+        # Check for exact name match
+        for name, info in stocks_dict.items():
+            if name.lower() == query_lower:
+                st.session_state[f"{key}_selected"] = name
+                st.success(f"✅ Selected: **{name}**")
+                return name, info
+        
+        # Check for exact symbol match
+        for name, info in stocks_dict.items():
+            if info.get('symbol', '').lower() == query_lower:
+                st.session_state[f"{key}_selected"] = name
+                st.success(f"✅ Selected: **{name}** ({info['symbol']})")
+                return name, info
+    
+    # Default: return previously selected stock
+    default_stock = st.session_state[f"{key}_selected"]
+    return default_stock, stocks_dict[default_stock]
 
 def generate_portfolio_pdf():
     """Generate a PDF report of the portfolio with analysis and graph"""
@@ -445,15 +581,33 @@ def ai_agent_page():
         
         with col_a:
             st.subheader("📊 Stock Selection")
-            stock_name = st.selectbox("Choose a stock:", list(INDIAN_STOCKS.keys()))
-            st.session_state.selected_stock = stock_name
+            
+            # Use the search widget
+            selected_name, selected_info = google_style_stock_search(
+                INDIAN_STOCKS,
+                label="🔍 Search Stock",
+                key="main_stock_search"
+            )
+            
+            st.session_state.selected_stock = selected_name
+            st.session_state.selected_ticker = selected_info['ticker']
+            
+            # Display selected stock info
+            st.info(f"**Selected:** {selected_name} ({selected_info['symbol']})")
+            st.caption(f"Sector: {selected_info['sector']}")
             
             # Stock comparison
             st.subheader("⚖️ Compare")
-            other_stocks = [s for s in INDIAN_STOCKS.keys() if s != stock_name]
-            compare_stock = st.selectbox("Compare with:", other_stocks)
+            
+            # Get another stock for comparison
+            compare_name, compare_info = google_style_stock_search(
+                INDIAN_STOCKS,
+                label="🔍 Compare with",
+                key="compare_stock_search"
+            )
+            
             if st.button("Compare Stocks", use_container_width=True):
-                prompt = f"Compare {stock_name} with {compare_stock}"
+                prompt = f"Compare {selected_name} ({selected_info['symbol']}) with {compare_name} ({compare_info['symbol']})"
                 st.session_state.messages.append({"role": "user", "content": prompt})
                 st.session_state.process_button_prompt = prompt
                 st.rerun()
