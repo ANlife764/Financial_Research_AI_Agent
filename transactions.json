@@ -1,154 +1,186 @@
 [
-  {
-    "ticker": "WSTCSTPAPR",
-    "name": "West Coast Paper Mills Limited",
-    "quantity": 10,
-    "price": 402.45001220703125,
-    "date": "2025-12-09",
-    "Type": "Buy"
-  },
-  {
-    "ticker": "TCS",
-    "name": "Tata Consultancy Services Limited",
-    "quantity": 10,
-    "price": 3000.0,
-    "date": "2025-10-09",
-    "Type": "Buy"
-  },
-  {
-    "ticker": "RELIANCE",
-    "name": "Reliance Industries Limited",
-    "quantity": 37,
-    "price": 1529.4,
-    "date": "2025-12-09",
-    "Type": "Buy"
-  },
-  {
-    "ticker": "ICICIBANK",
-    "name": "ICICI Bank Limited",
-    "quantity": 41,
-    "price": 1375.2,
-    "date": "2025-12-09",
-    "Type": "Buy"
-  },
-  {
-    "ticker": "ICICIBANK",
-    "name": "ICICI Bank Limited",
-    "quantity": 1,
-    "price": 1375.199951171875,
-    "date": "2025-12-09",
-    "Type": "Sell"
-  },
-  {
-    "ticker": "HDFCBANK",
-    "name": "HDFC Bank Limited",
-    "quantity": 100,
-    "price": 1500.0,
-    "date": "2023-12-09",
-    "Type": "Buy"
-  },
-  {
-    "ticker": "HDFCBANK",
-    "name": "HDFC Bank Limited",
-    "quantity": 100,
-    "price": 2700.0,
-    "date": "2025-12-09",
-    "Type": "Sell"
-  },
-  {
-    "ticker": "TCS",
-    "name": "Tata Consultancy Services Limited",
-    "quantity": 1,
-    "price": 3200.0,
-    "date": "2025-12-09",
-    "Type": "Sell"
-  },
-  {
-    "ticker": "BAJFINANCE",
-    "name": "Bajaj Finance Limited",
-    "quantity": 10,
-    "price": 3000.0,
-    "date": "2025-10-09",
-    "Type": "Buy"
-  },
-  {
-    "ticker": "BAJFINANCE",
-    "name": "Bajaj Finance Limited",
-    "quantity": 10,
-    "price": 3200.0,
-    "date": "2025-12-09",
-    "Type": "Sell"
-  },
-  {
-    "ticker": "HDFCLIFE",
-    "name": "HDFC Life Insurance Company Limited",
-    "quantity": 10,
-    "price": 762.9,
-    "date": "2025-12-09",
-    "Type": "Buy"
-  },
-  {
-    "ticker": "TCS",
-    "name": "Tata Consultancy Services Limited",
-    "quantity": 1,
-    "price": 3208.300048828125,
-    "date": "2025-12-09",
-    "Type": "Sell"
-  },
-  {
-    "ticker": "WSTCSTPAPR",
-    "name": "West Coast Paper Mills Limited",
-    "quantity": 10,
-    "price": 402.45,
-    "date": "2025-12-09",
-    "Type": "Buy"
-  },
-  {
-    "ticker": "WSTCSTPAPR",
-    "name": "West Coast Paper Mills Limited",
-    "quantity": 10,
-    "price": 402.45001220703125,
-    "date": "2025-12-09",
-    "Type": "Sell"
-  },
-  {
-    "ticker": "500470",
-    "name": "Tata Steel Limited",
-    "quantity": 10,
-    "price": 160.60000610351562,
-    "date": "2025-12-10",
-    "Type": "Buy"
-  },
-  {
-    "ticker": "NIFTY_50",
-    "name": "NIFTY_50",
-    "quantity": 10,
-    "price": 25761.25,
-    "date": "2025-12-10",
-    "Type": "Buy"
-  },
-  {
-    "ticker": "506480",
-    "name": "GOCL Corporation Limited",
-    "quantity": 10,
-    "price": 292.8999938964844,
-    "date": "2025-12-10",
-    "Type": "Buy"
-  },
-  {
-    "ticker": "500470",
-    "name": "Tata Steel Limited",
-    "quantity": 10,
-    "price": 160.60000610351562,
-    "date": "2025-12-10",
-    "Type": "Sell"
-  },
-  {
-    "ticker": "GOLDCASE",
-    "name": "Zerodha Gold ETF",
-    "quantity": 7063,
-    "price": 13.58,
-    "date": "2025-12-10",
-    "Type": "Buy"
-  }
+    {
+        "ticker": "WSTCSTPAPR",
+        "name": "West Coast Paper Mills Limited",
+        "quantity": 10,
+        "price": 402.45001220703125,
+        "date": "2025-12-09",
+        "Type": "Buy"
+    },
+    {
+        "ticker": "TCS",
+        "name": "Tata Consultancy Services Limited",
+        "quantity": 10,
+        "price": 3000.0,
+        "date": "2025-10-09",
+        "Type": "Buy"
+    },
+    {
+        "ticker": "RELIANCE",
+        "name": "Reliance Industries Limited",
+        "quantity": 37,
+        "price": 1529.4,
+        "date": "2025-12-09",
+        "Type": "Buy"
+    },
+    {
+        "ticker": "ICICIBANK",
+        "name": "ICICI Bank Limited",
+        "quantity": 41,
+        "price": 1375.2,
+        "date": "2025-12-09",
+        "Type": "Buy"
+    },
+    {
+        "ticker": "ICICIBANK",
+        "name": "ICICI Bank Limited",
+        "quantity": 1,
+        "price": 1375.199951171875,
+        "date": "2025-12-09",
+        "Type": "Sell"
+    },
+    {
+        "ticker": "HDFCBANK",
+        "name": "HDFC Bank Limited",
+        "quantity": 100,
+        "price": 1500.0,
+        "date": "2023-12-09",
+        "Type": "Buy"
+    },
+    {
+        "ticker": "HDFCBANK",
+        "name": "HDFC Bank Limited",
+        "quantity": 100,
+        "price": 2700.0,
+        "date": "2025-12-09",
+        "Type": "Sell"
+    },
+    {
+        "ticker": "TCS",
+        "name": "Tata Consultancy Services Limited",
+        "quantity": 1,
+        "price": 3200.0,
+        "date": "2025-12-09",
+        "Type": "Sell"
+    },
+    {
+        "ticker": "BAJFINANCE",
+        "name": "Bajaj Finance Limited",
+        "quantity": 10,
+        "price": 3000.0,
+        "date": "2025-10-09",
+        "Type": "Buy"
+    },
+    {
+        "ticker": "BAJFINANCE",
+        "name": "Bajaj Finance Limited",
+        "quantity": 10,
+        "price": 3200.0,
+        "date": "2025-12-09",
+        "Type": "Sell"
+    },
+    {
+        "ticker": "HDFCLIFE",
+        "name": "HDFC Life Insurance Company Limited",
+        "quantity": 10,
+        "price": 762.9,
+        "date": "2025-12-09",
+        "Type": "Buy"
+    },
+    {
+        "ticker": "TCS",
+        "name": "Tata Consultancy Services Limited",
+        "quantity": 1,
+        "price": 3208.300048828125,
+        "date": "2025-12-09",
+        "Type": "Sell"
+    },
+    {
+        "ticker": "WSTCSTPAPR",
+        "name": "West Coast Paper Mills Limited",
+        "quantity": 10,
+        "price": 402.45,
+        "date": "2025-12-09",
+        "Type": "Buy"
+    },
+    {
+        "ticker": "WSTCSTPAPR",
+        "name": "West Coast Paper Mills Limited",
+        "quantity": 10,
+        "price": 402.45001220703125,
+        "date": "2025-12-09",
+        "Type": "Sell"
+    },
+    {
+        "ticker": "500470",
+        "name": "Tata Steel Limited",
+        "quantity": 10,
+        "price": 160.60000610351562,
+        "date": "2025-12-10",
+        "Type": "Buy"
+    },
+    {
+        "ticker": "NIFTY_50",
+        "name": "NIFTY_50",
+        "quantity": 10,
+        "price": 25761.25,
+        "date": "2025-12-10",
+        "Type": "Buy"
+    },
+    {
+        "ticker": "506480",
+        "name": "GOCL Corporation Limited",
+        "quantity": 10,
+        "price": 292.8999938964844,
+        "date": "2025-12-10",
+        "Type": "Buy"
+    },
+    {
+        "ticker": "500470",
+        "name": "Tata Steel Limited",
+        "quantity": 10,
+        "price": 160.60000610351562,
+        "date": "2025-12-10",
+        "Type": "Sell"
+    },
+    {
+        "ticker": "GOLDCASE",
+        "name": "Zerodha Gold ETF",
+        "quantity": 7063,
+        "price": 13.58,
+        "date": "2025-12-10",
+        "Type": "Buy"
+    },
+    {
+        "ticker": "DEN",
+        "name": "DEN Networks Limited",
+        "quantity": 12,
+        "price": 32.85,
+        "date": "2025-12-02",
+        "Type": "Buy"
+    },
+    {
+        "ticker": "DEN",
+        "name": "DEN Networks Limited",
+        "quantity": 3,
+        "price": 30.850000381469727,
+        "date": "2025-12-10",
+        "Type": "Sell"
+    },
+    {
+        "ticker": "DEN",
+        "name": "DEN Networks Limited",
+        "quantity": 15,
+        "price": 32.85,
+        "date": "2025-12-02",
+        "Type": "Buy"
+    },
+    {
+        "ticker": "DEN",
+        "name": "DEN Networks Limited",
+        "quantity": 8,
+        "price": 30.850000381469727,
+        "date": "2025-12-10",
+        "Type": "Sell"
+    }
 ]
