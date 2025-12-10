@@ -1,10 +1,16 @@
 # utils/technical_analysis.py
 import pandas as pd
-import pandas_ta as ta
 import numpy as np
 import streamlit as st
 from typing import Dict, List, Tuple
 from datetime import datetime, timedelta
+
+# Import ta modules
+import ta
+import ta.trend
+import ta.momentum
+import ta.volatility
+import ta.volume
 
 class TechnicalAnalyzer:
     def __init__(self):
@@ -33,44 +39,102 @@ class TechnicalAnalyzer:
             volume = df['Volume']
             
             indicators = {}
+            current_price = close_prices.iloc[-1]
+            indicators['current_price'] = float(current_price)
             
-            # Moving Averages
-            indicators['sma_20'] = ta.sma(close_prices, length=20).iloc[-1]
-            indicators['sma_50'] = ta.sma(close_prices, length=50).iloc[-1]
-            indicators['ema_12'] = ta.ema(close_prices, length=12).iloc[-1]
-            indicators['ema_26'] = ta.ema(close_prices, length=26).iloc[-1]
+            # ===== MOVING AVERAGES =====
+            # SMA 20
+            sma_20_indicator = ta.trend.SMAIndicator(close=close_prices, window=20)
+            indicators['sma_20'] = float(sma_20_indicator.sma_indicator().iloc[-1]) if not sma_20_indicator.sma_indicator().isna().iloc[-1] else None
             
-            # RSI
-            rsi = ta.rsi(close_prices, length=14)
-            indicators['rsi'] = rsi.iloc[-1] if not rsi.empty else None
+            # SMA 50
+            sma_50_indicator = ta.trend.SMAIndicator(close=close_prices, window=50)
+            indicators['sma_50'] = float(sma_50_indicator.sma_indicator().iloc[-1]) if not sma_50_indicator.sma_indicator().isna().iloc[-1] else None
             
-            # MACD
-            macd = ta.macd(close_prices, fast=12, slow=26, signal=9)
-            if not macd.empty:
-                indicators['macd'] = macd['MACD_12_26_9'].iloc[-1]
-                indicators['macd_signal'] = macd['MACDs_12_26_9'].iloc[-1]
-                indicators['macd_histogram'] = macd['MACDh_12_26_9'].iloc[-1]
+            # EMA 12
+            ema_12_indicator = ta.trend.EMAIndicator(close=close_prices, window=12)
+            indicators['ema_12'] = float(ema_12_indicator.ema_indicator().iloc[-1]) if not ema_12_indicator.ema_indicator().isna().iloc[-1] else None
             
-            # Bollinger Bands
-            bollinger = ta.bbands(close_prices, length=20, std=2)
-            if not bollinger.empty:
-                indicators['bb_upper'] = bollinger['BBU_20_2.0'].iloc[-1]
-                indicators['bb_middle'] = bollinger['BBM_20_2.0'].iloc[-1]
-                indicators['bb_lower'] = bollinger['BBL_20_2.0'].iloc[-1]
-                indicators['bb_position'] = (close_prices.iloc[-1] - indicators['bb_lower']) / (indicators['bb_upper'] - indicators['bb_lower'])
+            # EMA 26
+            ema_26_indicator = ta.trend.EMAIndicator(close=close_prices, window=26)
+            indicators['ema_26'] = float(ema_26_indicator.ema_indicator().iloc[-1]) if not ema_26_indicator.ema_indicator().isna().iloc[-1] else None
             
-            # Stochastic
-            stoch = ta.stoch(high_prices, low_prices, close_prices, k=14, d=3)
-            if not stoch.empty:
-                indicators['stoch_k'] = stoch['STOCHk_14_3_3'].iloc[-1]
-                indicators['stoch_d'] = stoch['STOCHd_14_3_3'].iloc[-1]
+            # ===== RSI =====
+            rsi_indicator = ta.momentum.RSIIndicator(close=close_prices, window=14)
+            rsi_series = rsi_indicator.rsi()
+            indicators['rsi'] = float(rsi_series.iloc[-1]) if not rsi_series.isna().iloc[-1] else None
             
-            # Volume indicators
-            indicators['volume_sma'] = ta.sma(volume, length=20).iloc[-1]
-            indicators['current_volume'] = volume.iloc[-1]
-            indicators['volume_ratio'] = indicators['current_volume'] / indicators['volume_sma'] if indicators['volume_sma'] > 0 else 1
+            # ===== MACD =====
+            macd_indicator = ta.trend.MACD(
+                close=close_prices,
+                window_slow=26,
+                window_fast=12,
+                window_sign=9
+            )
+            macd_line = macd_indicator.macd()
+            macd_signal_line = macd_indicator.macd_signal()
+            macd_diff = macd_indicator.macd_diff()
             
-            # Generate signals
+            indicators['macd'] = float(macd_line.iloc[-1]) if not macd_line.isna().iloc[-1] else None
+            indicators['macd_signal'] = float(macd_signal_line.iloc[-1]) if not macd_signal_line.isna().iloc[-1] else None
+            indicators['macd_histogram'] = float(macd_diff.iloc[-1]) if not macd_diff.isna().iloc[-1] else None
+            
+            # ===== BOLLINGER BANDS =====
+            bb_indicator = ta.volatility.BollingerBands(
+                close=close_prices,
+                window=20,
+                window_dev=2
+            )
+            bb_upper = bb_indicator.bollinger_hband()
+            bb_middle = bb_indicator.bollinger_mavg()
+            bb_lower = bb_indicator.bollinger_lband()
+            
+            indicators['bb_upper'] = float(bb_upper.iloc[-1]) if not bb_upper.isna().iloc[-1] else None
+            indicators['bb_middle'] = float(bb_middle.iloc[-1]) if not bb_middle.isna().iloc[-1] else None
+            indicators['bb_lower'] = float(bb_lower.iloc[-1]) if not bb_lower.isna().iloc[-1] else None
+            
+            # Calculate BB position (0-1 scale)
+            if all([indicators['bb_upper'], indicators['bb_lower']]):
+                bb_range = indicators['bb_upper'] - indicators['bb_lower']
+                if bb_range > 0:
+                    indicators['bb_position'] = (current_price - indicators['bb_lower']) / bb_range
+                else:
+                    indicators['bb_position'] = 0.5
+            else:
+                indicators['bb_position'] = 0.5
+            
+            # ===== STOCHASTIC =====
+            stoch_indicator = ta.momentum.StochasticOscillator(
+                high=high_prices,
+                low=low_prices,
+                close=close_prices,
+                window=14,
+                smooth_window=3
+            )
+            stoch_k = stoch_indicator.stoch()
+            stoch_d = stoch_indicator.stoch_signal()
+            
+            indicators['stoch_k'] = float(stoch_k.iloc[-1]) if not stoch_k.isna().iloc[-1] else None
+            indicators['stoch_d'] = float(stoch_d.iloc[-1]) if not stoch_d.isna().iloc[-1] else None
+            
+            # ===== VOLUME INDICATORS =====
+            # Volume SMA
+            volume_sma_indicator = ta.volume.VolumeWeightedAveragePrice(
+                high=high_prices,
+                low=low_prices,
+                close=close_prices,
+                volume=volume,
+                window=20
+            )
+            indicators['volume_sma'] = float(volume_sma_indicator.volume_weighted_average_price().iloc[-1]) if not volume_sma_indicator.volume_weighted_average_price().isna().iloc[-1] else None
+            
+            # Current volume
+            indicators['current_volume'] = float(volume.iloc[-1])
+            
+            # Volume ratio
+            indicators['volume_ratio'] = indicators['current_volume'] / indicators['volume_sma'] if indicators['volume_sma'] and indicators['volume_sma'] > 0 else 1
+            
+            # ===== GENERATE SIGNALS =====
             indicators['signals'] = self.generate_signals(indicators)
             
             return indicators
@@ -131,14 +195,27 @@ class TechnicalAnalyzer:
                 else:
                     signals['bb_signal'] = 'NEUTRAL'
             
+            # Stochastic Signals
+            stoch_k = indicators.get('stoch_k')
+            stoch_d = indicators.get('stoch_d')
+            if stoch_k and stoch_d:
+                if stoch_k > 80 and stoch_d > 80:
+                    signals['stoch_signal'] = 'OVERBOUGHT'
+                elif stoch_k < 20 and stoch_d < 20:
+                    signals['stoch_signal'] = 'OVERSOLD'
+                elif stoch_k > stoch_d:
+                    signals['stoch_signal'] = 'BULLISH_CROSS'
+                elif stoch_k < stoch_d:
+                    signals['stoch_signal'] = 'BEARISH_CROSS'
+            
             # Overall Signal
             bullish_signals = sum([
                 1 for signal in signals.values() 
-                if signal in ['BULLISH', 'OVERBOUGHT', 'STRONG_BUY']
+                if signal in ['BULLISH', 'OVERBOUGHT', 'STRONG_BUY', 'BULLISH_CROSS']
             ])
             bearish_signals = sum([
                 1 for signal in signals.values() 
-                if signal in ['BEARISH', 'OVERSOLD', 'STRONG_SELL']
+                if signal in ['BEARISH', 'OVERSOLD', 'STRONG_SELL', 'BEARISH_CROSS']
             ])
             
             if bullish_signals > bearish_signals:
@@ -170,12 +247,12 @@ class TechnicalAnalyzer:
             recent_low = low.tail(window).min()
             
             return {
-                'pivot': pivot.iloc[-1],
-                'resistance_1': r1.iloc[-1],
-                'support_1': s1.iloc[-1],
-                'recent_high': recent_high,
-                'recent_low': recent_low,
-                'current_price': close.iloc[-1]
+                'pivot': float(pivot.iloc[-1]),
+                'resistance_1': float(r1.iloc[-1]),
+                'support_1': float(s1.iloc[-1]),
+                'recent_high': float(recent_high),
+                'recent_low': float(recent_low),
+                'current_price': float(close.iloc[-1])
             }
             
         except Exception as e:
