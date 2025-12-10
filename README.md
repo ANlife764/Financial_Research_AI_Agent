@@ -118,7 +118,7 @@ financial-research-ai/
 - **Frontend**: Streamlit (Python web framework)
 - **AI Engine**: Google Gemini AI (Gemini 2.5 Flash)
 - **Data Sources**: Yahoo Finance (yfinance) for Indian stocks (`.NS` suffix)
-- **Database**: SQLite for portfolio, JSON for transactions
+- **Database**: JSON for transactions
 - **Visualization**: Plotly, Matplotlib
 - **Technical Analysis**: pandas-ta, TA-Lib
 - **Sentiment Analysis**: TextBlob, VADER
@@ -127,7 +127,7 @@ financial-research-ai/
 ## 📊 Key Modules Explained
 
 ### 1. **Portfolio Manager (`portfolio_manager.py`)**
-- SQLite-based transaction tracking for Indian stocks
+- JSON-based transaction tracking for Indian stocks
 - FIFO (First-In-First-Out) accounting for capital gains (Indian tax compliant)
 - Real-time valuation with yfinance integration (e.g., `RELIANCE.NS`)
 - Sector allocation and diversification analysis
@@ -201,10 +201,9 @@ ICICIBANK.NS     - ICICI Bank
 
 ## 🔒 Data Security
 
-- All portfolio data stored locally (SQLite + JSON)
+- All portfolio data stored locally (JSON)
 - No sensitive data sent to external servers (except API calls)
 - API keys managed through Streamlit secrets
-- Transaction history encrypted in database
 
 ## 🚀 Future Enhancements
 
@@ -240,5 +239,6 @@ NEWSDATA_API_KEY = "your-newsdata-ai-key"
 - Format: CSV with `SYMBOL` and `NAME` columns
 - Can be replaced with custom Indian stock list
 - BSE stocks can use `.BO` suffix instead of `.NS`
+
 
 
