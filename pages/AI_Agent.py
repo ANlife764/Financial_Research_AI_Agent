@@ -26,7 +26,7 @@ def load_stocks_for_agent():
 INDIAN_STOCKS = load_stocks_for_agent()
 
 # Configure Gemini AI
-genai.configure(api_key=st.secrets.get("GOOGLE_API_KEY", os.environ.get("GOOGLE_API_KEY")))
+genai.configure(api_key = os.environ.get("GOOGLE_API_KEY"))
 model = genai.GenerativeModel("models/gemini-2.5-flash")
 
 # In AI_Agent.py - Add this function at the top
