@@ -18,7 +18,7 @@ def analytics_page():
         stock_name = st.selectbox("Select Stock", list(INDIAN_STOCKS.keys()))
         ticker = INDIAN_STOCKS[stock_name]["ticker"]
     with col2:
-        timeframe = st.selectbox("Timeframe", ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"])
+        timeframe = st.selectbox("Timeframe", ["5d", "1mo", "3mo", "6mo", "1y", "2y", "5y"])
     with col3:
         analysis_type = st.selectbox("Analysis Type", 
             ["Technical", "Fundamental", "Comparison", "Risk", "Sentiment"])
