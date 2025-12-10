@@ -1,5 +1,6 @@
 # app.py
 import streamlit as st
+import pandas as pd
 
 st.set_page_config(
     page_title="AI Financial Agent",
@@ -47,10 +48,11 @@ st.markdown("""
     section[data-testid="stSidebar"] {
         display: none;
     }
-    /* Hide sidebar toggle */
-    .stApp > header {
-        display: none;
+    /header[data-testid="stHeader"] {
+    display: none !important;
     }
+
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -106,10 +108,31 @@ def main():
     elif st.session_state.current_page == "Portfolio":
         from pages.Portfolio import portfolio_page
         portfolio_page()
+    elif st.session_state.current_page == "AddStock":
+        from pages.portfolio_add import add_stock_page
+        add_stock_page()
+    elif st.session_state.current_page == "SIP":
+        from pages.portfolio_sip import calc_SIP
+        calc_SIP()
+    elif st.session_state.current_page == "Tax":
+        from pages.portfolio_tax import tax_calc
+        tax_calc()
+    elif st.session_state.current_page == "Extr":
+        from pages.portfolio_extr import exptr
+        exptr()
     elif st.session_state.current_page == "Analytics":
         from pages.Analytics import analytics_page
         analytics_page()
-    
+
+    def initialize_portfolio_state():
+        """Initialize or load the dynamic transaction history."""
+        if 'transactions_df' not in st.session_state:
+        # Columns for all transactions (Buy/Sell/Expense/Income)
+            st.session_state.transactions_df = pd.DataFrame(
+            columns=['Date', 'Type', 'Category', 'Ticker', 'Quantity', 'Price', 'Amount']
+            )
+    initialize_portfolio_state()
+
     # Footer
     st.markdown("---")
     st.markdown("💡 **Tip**: Use the AI Agent for personalized investment insights!")

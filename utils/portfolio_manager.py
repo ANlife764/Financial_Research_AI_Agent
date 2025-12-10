@@ -1,3 +1,4 @@
+
 # utils/portfolio_manager.py
 import sqlite3
 import pandas as pd
@@ -18,19 +19,7 @@ class PortfolioManager:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # Create holdings table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS holdings (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    symbol TEXT NOT NULL,
-                    quantity INTEGER NOT NULL,
-                    buy_price REAL NOT NULL,
-                    buy_date TEXT NOT NULL,
-                    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
-            
-            # Create transactions table
+            # Create transactions table (Source of Truth)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS transactions (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,7 +49,7 @@ class PortfolioManager:
             st.error(f"Database initialization error: {str(e)}")
     
     def add_holding(self, symbol: str, quantity: int, buy_price: float, buy_date: str = None):
-        """Add a stock to portfolio holdings"""
+        """Add a stock to portfolio holdings (Records a BUY transaction)"""
         try:
             if buy_date is None:
                 buy_date = datetime.now().strftime("%Y-%m-%d")
@@ -68,12 +57,7 @@ class PortfolioManager:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            cursor.execute('''
-                INSERT INTO holdings (symbol, quantity, buy_price, buy_date)
-                VALUES (?, ?, ?, ?)
-            ''', (symbol, quantity, buy_price, buy_date))
-            
-            # Also add transaction record
+            # Insert transaction record (BUY)
             cursor.execute('''
                 INSERT INTO transactions (type, symbol, quantity, price, date)
                 VALUES (?, ?, ?, ?, ?)
@@ -89,22 +73,23 @@ class PortfolioManager:
             return False
     
     def remove_holding(self, symbol: str, quantity: int, sell_price: float):
-        """Remove/sell a stock from portfolio"""
+        """Remove/sell a stock from portfolio (Records a SELL transaction)"""
         try:
             conn = sqlite3.connect(self.db_path)
             cursor = conn.cursor()
             
-            # Get current holdings
-            cursor.execute('SELECT id, quantity FROM holdings WHERE symbol = ?', (symbol,))
-            holdings = cursor.fetchall()
+            # FIX: Validate if sufficient total quantity is owned (Query the transactions table)
+            cursor.execute('''
+                SELECT SUM(CASE WHEN type = 'BUY' THEN quantity ELSE -quantity END)
+                FROM transactions
+                WHERE symbol = ?
+            ''', (symbol,))
             
-            if not holdings:
-                return False
+            total_quantity_owned = cursor.fetchone()[0] or 0 # Get net quantity
             
-            total_quantity = sum([h[1] for h in holdings])
-            
-            if quantity > total_quantity:
-                st.error("Cannot sell more than owned quantity")
+            if quantity > total_quantity_owned:
+                st.error(f"Cannot sell {quantity} shares of {symbol}. You only own {total_quantity_owned} shares.")
+                conn.close()
                 return False
             
             # Add sell transaction
@@ -112,24 +97,6 @@ class PortfolioManager:
                 INSERT INTO transactions (type, symbol, quantity, price, date)
                 VALUES (?, ?, ?, ?, ?)
             ''', ('SELL', symbol, quantity, sell_price, datetime.now().strftime("%Y-%m-%d")))
-            
-            # Update holdings (FIFO method)
-            remaining_quantity = quantity
-            for holding_id, holding_quantity in holdings:
-                if remaining_quantity <= 0:
-                    break
-                
-                if holding_quantity <= remaining_quantity:
-                    # Remove entire holding
-                    cursor.execute('DELETE FROM holdings WHERE id = ?', (holding_id,))
-                    remaining_quantity -= holding_quantity
-                else:
-                    # Reduce quantity
-                    cursor.execute(
-                        'UPDATE holdings SET quantity = ? WHERE id = ?',
-                        (holding_quantity - remaining_quantity, holding_id)
-                    )
-                    remaining_quantity = 0
             
             conn.commit()
             conn.close()
@@ -140,56 +107,77 @@ class PortfolioManager:
             return False
     
     def get_portfolio_summary(self) -> Dict:
-        """Get complete portfolio summary with current values"""
+        """Get complete portfolio summary with current values calculated from transactions."""
         try:
             conn = sqlite3.connect(self.db_path)
             
-            # Get all holdings
-            holdings_df = pd.read_sql_query('''
-                SELECT symbol, quantity, buy_price, buy_date 
-                FROM holdings
+            # FIX: Use transactions table to calculate net holdings and total cost
+            transactions_df = pd.read_sql_query('''
+                SELECT type, symbol, quantity, price, date
+                FROM transactions
             ''', conn)
             
-            if holdings_df.empty:
+            if transactions_df.empty:
                 return {
-                    "total_investment": 0,
-                    "current_value": 0,
-                    "total_pnl": 0,
-                    "pnl_percentage": 0,
-                    "holdings": []
+                    "total_investment": 0, "current_value": 0, "total_pnl": 0,
+                    "pnl_percentage": 0, "holdings": []
                 }
+                
+            # Prepare data for aggregation
+            transactions_df['signed_quantity'] = np.where(
+                transactions_df['type'] == 'BUY', 
+                transactions_df['quantity'], 
+                -transactions_df['quantity']
+            )
+            transactions_df['cost'] = transactions_df['quantity'] * transactions_df['price']
             
-            # Calculate current values
+            holdings_summary = transactions_df.groupby('symbol').agg(
+                quantity=('signed_quantity', 'sum'),
+                total_cost=('cost', 'sum')
+            ).reset_index()
+            
+            # Filter out fully sold symbols (quantity = 0) and ensure quantity is positive for display
+            holdings_summary = holdings_summary[holdings_summary['quantity'] != 0].copy()
+            holdings_summary['quantity'] = holdings_summary['quantity'].abs() 
+
+            if holdings_summary.empty:
+                return {
+                    "total_investment": 0, "current_value": 0, "total_pnl": 0,
+                    "pnl_percentage": 0, "holdings": []
+                }
+                
+            # Calculate Avg Price 
+            holdings_summary['avg_price'] = holdings_summary['total_cost'] / holdings_summary['quantity']
+            
             portfolio_data = []
             total_investment = 0
             total_current_value = 0
             
-            for _, holding in holdings_df.iterrows():
+            # Loop to fetch current price and calculate P&L
+            for _, holding in holdings_summary.iterrows():
                 symbol = holding['symbol']
                 quantity = holding['quantity']
-                buy_price = holding['buy_price']
-                
-                # Get current price
+                buy_price = holding['avg_price'] # Use the calculated average price as the buy price
+
+                # --- API CALL LOGIC ---
                 try:
                     stock = yf.Ticker(symbol)
                     current_data = stock.history(period="1d")
                     current_price = current_data["Close"].iloc[-1] if not current_data.empty else buy_price
                 except:
                     current_price = buy_price
+                # ----------------------
                 
+                # Recalculate investment and P&L
                 investment = quantity * buy_price
                 current_value = quantity * current_price
                 pnl = current_value - investment
                 pnl_percentage = (pnl / investment) * 100 if investment > 0 else 0
                 
                 portfolio_data.append({
-                    'symbol': symbol,
-                    'quantity': quantity,
-                    'buy_price': buy_price,
-                    'current_price': round(current_price, 2),
-                    'investment': round(investment, 2),
-                    'current_value': round(current_value, 2),
-                    'pnl': round(pnl, 2),
+                    'symbol': symbol, 'quantity': quantity, 'buy_price': buy_price,
+                    'current_price': round(current_price, 2), 'investment': round(investment, 2),
+                    'current_value': round(current_value, 2), 'pnl': round(pnl, 2),
                     'pnl_percentage': round(pnl_percentage, 2)
                 })
                 
@@ -212,6 +200,8 @@ class PortfolioManager:
         except Exception as e:
             st.error(f"Error getting portfolio summary: {str(e)}")
             return {}
+    
+    # --- Other functions (get_transaction_history, add_to_watchlist, get_watchlist, calculate_portfolio_metrics) remain unchanged ---
     
     def get_transaction_history(self, limit: int = 50) -> pd.DataFrame:
         """Get transaction history"""
