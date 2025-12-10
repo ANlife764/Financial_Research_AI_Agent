@@ -1,42 +1,66 @@
 [
-    {
-        "ticker": "WSTCSTPAPR",
-        "name": "West Coast Paper Mills Limited",
-        "quantity": 10,
-        "price": 402.45001220703125,
-        "date": "2025-12-09",
-        "Type": "Buy"
-    },
-    {
-        "ticker": "RELIANCE",
-        "name": "Reliance Industries Limited",
-        "quantity": 37,
-        "price": 1529.4,
-        "date": "2025-12-09",
-        "Type": "Buy"
-    },
-    {
-        "ticker": "ICICIBANK",
-        "name": "ICICI Bank Limited",
-        "quantity": 40,
-        "price": 1375.2,
-        "date": "2025-12-09",
-        "Type": "Buy"
-    },
-    {
-        "ticker": "TCS",
-        "name": "Tata Consultancy Services Limited",
-        "quantity": 8,
-        "price": 3000.0,
-        "date": "2025-10-09",
-        "Type": "Buy"
-    },
-    {
-        "ticker": "HDFCLIFE",
-        "name": "HDFC Life Insurance Company Limited",
-        "quantity": 10,
-        "price": 762.9,
-        "date": "2025-12-09",
-        "Type": "Buy"
-    }
+  {
+    "ticker": "WSTCSTPAPR",
+    "name": "West Coast Paper Mills Limited",
+    "quantity": 10,
+    "price": 402.45001220703125,
+    "date": "2025-12-09",
+    "Type": "Buy"
+  },
+  {
+    "ticker": "RELIANCE",
+    "name": "Reliance Industries Limited",
+    "quantity": 37,
+    "price": 1529.4,
+    "date": "2025-12-09",
+    "Type": "Buy"
+  },
+  {
+    "ticker": "ICICIBANK",
+    "name": "ICICI Bank Limited",
+    "quantity": 40,
+    "price": 1375.2,
+    "date": "2025-12-09",
+    "Type": "Buy"
+  },
+  {
+    "ticker": "TCS",
+    "name": "Tata Consultancy Services Limited",
+    "quantity": 8,
+    "price": 3000.0,
+    "date": "2025-10-09",
+    "Type": "Buy"
+  },
+  {
+    "ticker": "HDFCLIFE",
+    "name": "HDFC Life Insurance Company Limited",
+    "quantity": 10,
+    "price": 762.9,
+    "date": "2025-12-09",
+    "Type": "Buy"
+  },
+  {
+    "ticker": "NIFTY_50",
+    "name": "NIFTY_50",
+    "quantity": 10,
+    "price": 25761.25,
+    "date": "2025-12-10",
+    "Type": "Buy"
+  },
+  {
+    "ticker": "506480",
+    "name": "GOCL Corporation Limited",
+    "quantity": 10,
+    "price": 292.8999938964844,
+    "date": "2025-12-10",
+    "Type": "Buy"
+  },
+  {
+    "ticker": "GOLDCASE",
+    "name": "Zerodha Gold ETF",
+    "quantity": 7063,
+    "price": 13.58,
+    "date": "2025-12-10",
+    "Type": "Buy"
+  }
 ]
