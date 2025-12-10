@@ -30,7 +30,6 @@ numpy-financial==1.0.0
 yahoofinancials==1.8
 
 # Technical Analysis
-pandas-ta==0.3.14b0
 ta==0.10.2
 
 # Sentiment Analysis
