@@ -1,6 +1,23 @@
 # app.py
 import streamlit as st
 import pandas as pd
+import nltk
+import ssl
+
+try:
+    _create_unverified_https_context = ssl._create_unverified_context
+except AttributeError:
+    pass
+else:
+    ssl._create_default_https_context = _create_unverified_https_context
+
+# Download NLTK data for TextBlob
+try:
+    nltk.data.find('tokenizers/punkt')
+except LookupError:
+    nltk.download('punkt')
+    nltk.download('averaged_perceptron_tagger')
+    nltk.download('brown')
 
 st.set_page_config(
     page_title="AI Financial Agent",
