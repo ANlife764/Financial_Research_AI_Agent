@@ -71,7 +71,8 @@ pip install -r requirements.txt
 Create `.streamlit/secrets.toml`:
 ```toml
 GOOGLE_API_KEY = "your-gemini-api-key"
-GNEWS_API_KEY = "your-gnews-api-key"  # Optional
+GNEWS_API_KEY = "your-gnews-api-key"
+NEWSDATA_API_KEY = "your-newsdata-ai-key"
 ```
 
 5. **Prepare stock data:**
@@ -231,6 +232,7 @@ ICICIBANK.NS     - ICICI Bank
 # .streamlit/secrets.toml
 GOOGLE_API_KEY = "your-google-ai-key"      # Required for AI Agent
 GNEWS_API_KEY = "your-gnews-key"           # For live Indian market news
+NEWSDATA_API_KEY = "your-newsdata-ai-key"
 ```
 
 ### Stock Database
@@ -238,3 +240,5 @@ GNEWS_API_KEY = "your-gnews-key"           # For live Indian market news
 - Format: CSV with `SYMBOL` and `NAME` columns
 - Can be replaced with custom Indian stock list
 - BSE stocks can use `.BO` suffix instead of `.NS`
+
+
