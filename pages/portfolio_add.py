@@ -7,7 +7,6 @@ import yfinance as yf
 
 PORTFOLIO_FILE = "portfolio.json"
 TRANSACTION = "transactions.json"
-STOCKS_CSV_FILE = "D:\Financial_Research_AI_Agent\EQUITY_L.csv"
 
 def load_portfolio(FILE):
     """Load portfolio from JSON file"""
@@ -28,48 +27,63 @@ def save_transactions(transactions):
     with open(TRANSACTION, "w") as f:
         json.dump(transactions, f, indent=2)
 
-
-def load_stocks_from_csv():
-    """Load all Indian stocks from CSV file - SIMPLE VERSION"""
+def search_stocks_yfinance(query, exchange='auto'):
+    """Search for stocks using yfinance - supports both NSE and BSE"""
     try:
-        # Load CSV without any filtering
-        df = pd.read_csv(STOCKS_CSV_FILE)
-                
-        # Try to find symbol and name columns
-        symbol_col = None
-        name_col = None
-        
-        for col in df.columns:
-            if 'SYMBOL' in col.upper():
-                symbol_col = col
-            if 'NAME' in col.upper():
-                name_col = col
-        
-       
-        if symbol_col and name_col:
-            stocks = []
-            for _, row in df.iterrows():
-                stocks.append({
-                    'symbol': str(row[symbol_col]).strip(),
-                    'name': str(row[name_col]).strip()
-                })
-            return stocks
-        else:
-            st.error("Could not find SYMBOL and NAME columns in CSV")
-            return []
+        # If exchange is 'auto', try both NSE and BSE
+        if exchange == 'auto':
+            # Try NSE first
+            nse_ticker = yf.Ticker(f"{query.upper()}.NS")
+            nse_info = nse_ticker.info
             
+            if 'symbol' in nse_info and nse_info['symbol'].endswith('.NS'):
+                return [{
+                    'symbol': nse_info['symbol'].replace('.NS', ''),
+                    'name': nse_info.get('longName', nse_info.get('shortName', query.upper())),
+                    'exchange': 'NSE'
+                }]
+            
+            # If NSE not found, try BSE
+            bse_ticker = yf.Ticker(f"{query.upper()}.BO")
+            bse_info = bse_ticker.info
+            
+            if 'symbol' in bse_info and bse_info['symbol'].endswith('.BO'):
+                return [{
+                    'symbol': bse_info['symbol'].replace('.BO', ''),
+                    'name': bse_info.get('longName', bse_info.get('shortName', query.upper())),
+                    'exchange': 'BSE'
+                }]
     except Exception as e:
-        st.error(f"Error loading CSV: {e}")
-        return []
+        st.error(f"Error searching: {e}")
+    
+    return []
 
-def get_current_price(symbol):
-    """Get current price using yfinance"""
+def get_current_price(symbol, exchange='NSE'):
     try:
-        ticker = yf.Ticker(f"{symbol}.NS")
-        info = ticker.info
-        price = info.get('currentPrice') or info.get('regularMarketPrice')
-        return float(price) if price else 0
-    except:
+        # Detect index tickers (NIFTY, BANKNIFTY)
+        index_map = {
+            "NIFTY_50": "^NSEI",
+            "NIFTY50": "^NSEI",
+            "NIFTY": "^NSEI",
+            "NIFTY BANK": "^NSEBANK",
+            "BANKNIFTY": "^NSEBANK"
+        }
+
+        if symbol.upper() in index_map:
+            ticker = yf.Ticker(index_map[symbol.upper()])
+        else:
+            suffix = ".NS" if exchange == "NSE" else ".BO"
+            ticker = yf.Ticker(symbol + suffix)
+
+        data = ticker.history(period="1d")
+
+        if not data.empty:
+            return float(data["Close"].iloc[-1])
+
+        return 0
+
+    except Exception as e:
+        print("Error:", e)
         return 0
 
 def add_stock_page():
@@ -79,10 +93,6 @@ def add_stock_page():
     portfolio = load_portfolio(PORTFOLIO_FILE)
     transaction = load_portfolio(TRANSACTION)
     
-    # Load stocks from CSV (show what we're getting)
-    if 'all_stocks' not in st.session_state:
-        st.session_state.all_stocks = load_stocks_from_csv()
-    
     # Initialize selected stock
     if 'selected_stock' not in st.session_state:
         st.session_state.selected_stock = None
@@ -91,34 +101,41 @@ def add_stock_page():
     st.subheader("Search Stock")
     
     # Search input
-    search_query = st.text_input(
-        "Type company name or symbol:",
-        placeholder="e.g., 'Reliance', 'TCS', 'HDFC'",
-        key="search_input",
-        value=""
-    )
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        search_query = st.text_input(
+            "Enter stock symbol:",
+            placeholder="e.g., 'RELIANCE' or '500325'",
+            key="search_input"
+        )
     
-    # Filter and display stocks
-    if search_query and len(search_query) >= 2:
-        query = search_query.upper()
+    with col2:
+        st.write("")
+        search_clicked = st.button("🔍 Search", type="primary")
+    
+    # Perform search
+    if search_clicked and search_query.strip():
+        query = search_query.strip().upper()
         
-        filtered_stocks = []
-        for stock in st.session_state.all_stocks:
-            if (query in stock['symbol'].upper() or 
-                query in stock['name'].upper()):
-                filtered_stocks.append(stock)
+        # Search using yfinance with selected exchange
+        found_stocks = search_stocks_yfinance(query, 'auto')
         
-        if filtered_stocks:
-            st.write(f"**Found {len(filtered_stocks)} matches:**")
-            
-            # Display as simple list
-            for stock in filtered_stocks[:20]:  # Show first 20
-                if st.button(f"**{stock['symbol']}** - {stock['name'][:50]}...", 
-                           key=f"btn_{stock['symbol']}"):
-                    st.session_state.selected_stock = stock
-                    st.rerun()
+        if found_stocks:
+            st.session_state.search_results = found_stocks
+            st.session_state.search_query = query
         else:
-            st.info(f"No stocks found for '{search_query}'")
+            st.error(f"No stock found for symbol '{query}'")
+            st.session_state.search_results = []
+    
+    # Display search results
+    if 'search_results' in st.session_state and st.session_state.search_results:
+        st.write(f"**Search results for '{st.session_state.search_query}':**")
+        
+        for stock in st.session_state.search_results:
+            button_text = f"**{stock['symbol']}** ({stock['exchange']}) - {stock['name'][:60]}..."
+            if st.button(button_text, key=f"btn_{stock['symbol']}_{stock['exchange']}"):
+                st.session_state.selected_stock = stock
+                st.rerun()
     
     # === SELECTED STOCK ===
     if st.session_state.selected_stock:
@@ -127,11 +144,15 @@ def add_stock_page():
         st.divider()
         st.subheader(f"Selected: {selected['symbol']}")
         st.write(f"*{selected['name']}*")
+        st.write(f"**Exchange:** {selected.get('exchange', 'NSE')}")
         
         # Show current price
-        current_price = get_current_price(selected['symbol'])
+        exchange = selected.get('exchange', 'NSE')
+        current_price = get_current_price(selected['symbol'], exchange)
         if current_price > 0:
             st.info(f"Current Price: **₹{current_price:,.2f}**")
+        else:
+            st.warning("Current price not available")
         
         # === PURCHASE DETAILS ===
         st.divider()
@@ -149,7 +170,7 @@ def add_stock_page():
         with col3:
             buy_date = st.date_input("Date", datetime.today())
         
-        # Add button
+        # Add exchange to saved data
         if st.button("✅ Add to Portfolio", type="primary"):
             portfolio.append({
                 'ticker': selected['symbol'],
@@ -166,12 +187,14 @@ def add_stock_page():
                 'price': buy_price,
                 'date': buy_date.strftime("%Y-%m-%d"),
                 'Type': 'Buy'
+                
             })
             
             save_portfolio(portfolio)
             save_transactions(transaction)
-            st.success(f"Added {quantity} shares of {selected['symbol']}!")
+            st.success(f"Added {quantity} shares of {selected['symbol']} ({selected.get('exchange', 'NSE')})!")
             st.session_state.selected_stock = None
+            st.session_state.search_results = []
             st.rerun()
         
         if st.button("❌ Cancel"):

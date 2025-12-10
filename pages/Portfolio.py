@@ -33,21 +33,52 @@ def save_transactions(transactions):
     with open("transactions.json", "w") as f:
         json.dump(transactions, f, indent=4)
 
+import yfinance as yf
+
 def fetch_prices(tickers):
-    """Fetch live prices one by one."""
+    """Fetch live/last close prices for NSE/BSE tickers."""
     prices = {}
-    
-    for ticker in tickers:
+
+    index_map = {
+        "NIFTY_50": "^NSEI",
+        "NIFTY50": "^NSEI",
+        "NIFTY": "^NSEI",
+        "NIFTY BANK": "^NSEBANK",
+        "BANKNIFTY": "^NSEBANK",
+    }
+
+    for symbol in tickers:
+        key = symbol.upper().strip()
+
         try:
-            stock = yf.Ticker(f"{ticker}.NS")
-            hist = stock.history(period="1d")
-            if not hist.empty:
-                prices[ticker] = hist["Close"].iloc[-1]
+            # If the symbol is a known index
+            if key in index_map:
+                yf_symbol = index_map[key]
+                ticker = yf.Ticker(yf_symbol)
+                data = ticker.history(period="1d")
+                prices[symbol] = float(data["Close"].iloc[-1]) if not data.empty else None
+                continue
+
+            # Try NSE first
+            ticker_nse = yf.Ticker(key + ".NS")
+            data_nse = ticker_nse.history(period="1d")
+
+            if not data_nse.empty:
+                prices[symbol] = float(data_nse["Close"].iloc[-1])
+                continue
+
+            # Fallback → Try BSE
+            ticker_bse = yf.Ticker(key + ".BO")
+            data_bse = ticker_bse.history(period="1d")
+
+            if not data_bse.empty:
+                prices[symbol] = float(data_bse["Close"].iloc[-1])
             else:
-                prices[ticker] = None
-        except:
-            prices[ticker] = None
-    
+                prices[symbol] = None
+
+        except Exception:
+            prices[symbol] = None
+
     return prices
 
 

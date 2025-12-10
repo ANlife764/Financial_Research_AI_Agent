@@ -2,7 +2,8 @@ import streamlit as st
 import json
 import os
 import pandas as pd
-from datetime import datetime as date
+from datetime import date
+
 
 TRANSACTION_CATEGORIES = ["Investment", "Income", "Rent", "Food", "Utilities", "Travel", "Misc"]
 JSON_FILE = "expenses.json"
@@ -31,6 +32,8 @@ def add_transaction(data):
 
 
 def exptr():
+    if "transactions_df" not in st.session_state:
+        st.session_state.transactions_df = load_transactions()
 
     st.header("💸 Expense Tracking with Categories")
 
@@ -47,8 +50,11 @@ def exptr():
 
         if st.form_submit_button("Record Expense/Income"):
             data = {
-                'Date': exp_date, 'Type': exp_type, 'Category': exp_category,
-                'Quantity': 0, 'Price': 0.0,
+                'Date': pd.to_datetime(exp_date),   # <<< FIX IS HERE
+                'Type': exp_type,
+                'Category': exp_category,
+                'Quantity': 0,
+                'Price': 0.0,
                 'Amount': exp_amount
             }
             add_transaction(data)
@@ -57,7 +63,7 @@ def exptr():
 
     # --- SUMMARY ---
     # Always load JSON into session state if not already done
-    transactions = load_transactions()
+    transactions = st.session_state.transactions_df
 
     expense_df = transactions[
         transactions['Type'].isin(["Expense", "Income"])
