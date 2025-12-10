@@ -6,15 +6,296 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import time
 import json
+import io
 from datetime import datetime, timedelta
 from utils.stock_data import get_stock_data, get_financial_metrics, INDIAN_STOCKS
 from utils.news_sentiment import news_analyzer
 from utils.technical_analysis import tech_analyzer
 import yfinance as yf
+from fpdf import FPDF
+import matplotlib
+matplotlib.use('Agg')
+import matplotlib.pyplot as plt
 
 # Configure Gemini AI
 genai.configure(api_key=st.secrets.get("GOOGLE_API_KEY", os.environ.get("GOOGLE_API_KEY")))
 model = genai.GenerativeModel("models/gemini-2.5-flash")
+
+def generate_portfolio_pdf():
+    """Generate a PDF report of the portfolio with analysis and graph"""
+    try:
+        # Get portfolio data
+        portfolio_summary = get_portfolio_summary()
+        
+        if not portfolio_summary["has_portfolio"]:
+            st.error("No portfolio data to export!")
+            return None
+        
+        # Create PDF
+        pdf = FPDF()
+        
+        # Page 1: Portfolio Overview
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 16)
+        pdf.cell(0, 10, "PORTFOLIO ANALYSIS REPORT", ln=True, align='C')
+        pdf.ln(5)
+        
+        pdf.set_font("Arial", "", 12)
+        pdf.cell(0, 10, f"Generated on: {datetime.now().strftime('%d %b %Y, %I:%M %p')}", ln=True)
+        pdf.ln(10)
+        
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "1. PORTFOLIO OVERVIEW", ln=True)
+        pdf.ln(5)
+        
+        pdf.set_font("Arial", "", 12)
+        pdf.cell(0, 8, f"Total Holdings: {len(portfolio_summary['holdings'])} stocks", ln=True)
+        pdf.cell(0, 8, f"Total Investment: INR {portfolio_summary['total_investment']:,.2f}", ln=True)
+        pdf.cell(0, 8, f"Current Value: INR {portfolio_summary['current_value']:,.2f}", ln=True)
+        
+        # P&L with color
+        pnl = portfolio_summary['total_pnl']
+        pnl_percent = portfolio_summary['pnl_percentage']
+        if pnl >= 0:
+            pdf.cell(0, 8, f"Total P&L: INR {pnl:,.2f} (+{pnl_percent:.2f}%)", ln=True)
+        else:
+            pdf.cell(0, 8, f"Total P&L: INR {pnl:,.2f} ({pnl_percent:.2f}%)", ln=True)
+        
+        pdf.ln(15)
+        
+        # Simple diversification metrics
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 8, "Quick Diversification Check:", ln=True)
+        pdf.set_font("Arial", "", 10)
+        
+        if len(portfolio_summary['holdings']) <= 3:
+            pdf.cell(0, 6, "Portfolio is concentrated (few holdings)", ln=True)
+        else:
+            pdf.cell(0, 6, "Portfolio has good number of holdings", ln=True)
+        
+        # Sector check (simplified)
+        sectors = set()
+        for holding in portfolio_summary['holdings']:
+            # Extract sector from stock name (simplified logic)
+            name_lower = holding['name'].lower()
+            if any(word in name_lower for word in ['bank', 'finance', 'capital']):
+                sectors.add('Financial')
+            elif any(word in name_lower for word in ['tech', 'software', 'consultancy']):
+                sectors.add('Technology')
+            elif any(word in name_lower for word in ['industries', 'manufacturing', 'mills']):
+                sectors.add('Industrial')
+            elif any(word in name_lower for word in ['insurance', 'life']):
+                sectors.add('Insurance')
+            else:
+                sectors.add('Other')
+        
+        pdf.cell(0, 6, f"Sectors represented: {len(sectors)}", ln=True)
+        
+        # Page 2: Individual Holdings
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "2. INDIVIDUAL HOLDINGS", ln=True)
+        pdf.ln(10)
+        
+        # Create a table for holdings
+        pdf.set_font("Arial", "B", 10)
+        # Table header
+        pdf.cell(40, 8, "Stock", border=1)
+        pdf.cell(25, 8, "Qty", border=1)
+        pdf.cell(40, 8, "Buy Price", border=1)
+        pdf.cell(40, 8, "Current", border=1)
+        pdf.cell(35, 8, "P&L %", border=1)
+        pdf.ln()
+        
+        # Table rows
+        pdf.set_font("Arial", "", 9)
+        for holding in portfolio_summary['holdings']:
+            pdf.cell(40, 8, holding['symbol'][:15], border=1)
+            pdf.cell(25, 8, str(holding['quantity']), border=1)
+            pdf.cell(40, 8, f"INR {holding['buy_price']:,.2f}", border=1)
+            pdf.cell(40, 8, f"INR {holding['current_price']:,.2f}", border=1)
+            
+            pnl_sign = "+" if holding['pnl_percentage'] >= 0 else ""
+            pnl_color = "G" if holding['pnl_percentage'] >= 0 else "R"  # G for green, R for red
+            pdf.cell(35, 8, f"{pnl_sign}{holding['pnl_percentage']:.2f}%", border=1)
+            pdf.ln()
+        
+        pdf.ln(10)
+        
+        # Top performers summary
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 8, "Performance Summary:", ln=True)
+        pdf.set_font("Arial", "", 10)
+        
+        if portfolio_summary['holdings']:
+            best = max(portfolio_summary['holdings'], key=lambda x: x['pnl_percentage'])
+            worst = min(portfolio_summary['holdings'], key=lambda x: x['pnl_percentage'])
+            
+            pdf.cell(0, 6, f"Best Performer: {best['symbol']} (+{best['pnl_percentage']:.2f}%)", ln=True)
+            pdf.cell(0, 6, f"Worst Performer: {worst['symbol']} ({worst['pnl_percentage']:.2f}%)", ln=True)
+        
+        # Page 3: Portfolio Analysis
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "3. PORTFOLIO ANALYSIS", ln=True)
+        pdf.ln(10)
+        
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 8, "Risk Assessment:", ln=True)
+        pdf.set_font("Arial", "", 10)
+        
+        # Risk analysis
+        total_value = portfolio_summary['current_value']
+        if total_value > 0:
+            # Calculate concentration risk
+            largest_holding = max(portfolio_summary['holdings'], key=lambda x: x['current_value'])
+            concentration = (largest_holding['current_value'] / total_value) * 100
+            
+            if concentration > 50:
+                pdf.cell(0, 6, " High concentration risk: Largest holding > 50%", ln=True)
+                pdf.cell(0, 6, f"   {largest_holding['symbol']}: {concentration:.1f}% of portfolio", ln=True)
+            elif concentration > 30:
+                pdf.cell(0, 6, " Moderate concentration risk: Largest holding > 30%", ln=True)
+                pdf.cell(0, 6, f"   {largest_holding['symbol']}: {concentration:.1f}% of portfolio", ln=True)
+            else:
+                pdf.cell(0, 6, " Good diversification: No single holding dominates", ln=True)
+        
+        pdf.ln(5)
+        
+        # Investment style analysis
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 8, "Investment Style:", ln=True)
+        pdf.set_font("Arial", "", 10)
+        
+        avg_holding_period = 30  # Simplified - in days
+        if avg_holding_period > 180:
+            pdf.cell(0, 6, " Long-term investment approach detected", ln=True)
+        elif avg_holding_period > 30:
+            pdf.cell(0, 6, " Medium-term investment approach", ln=True)
+        else:
+            pdf.cell(0, 6, " Short-term trading approach", ln=True)
+        
+        pdf.ln(5)
+        
+        # Recommendations
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 8, "Recommendations:", ln=True)
+        pdf.set_font("Arial", "", 10)
+        
+        # Generate simple recommendations
+        recommendations = []
+        
+        if len(portfolio_summary['holdings']) < 5:
+            recommendations.append("Consider adding more stocks for better diversification")
+        
+        if any(h['pnl_percentage'] < -10 for h in portfolio_summary['holdings']):
+            recommendations.append("Review underperforming stocks with >10% loss")
+        
+        if portfolio_summary['total_pnl'] < 0:
+            recommendations.append("Overall portfolio is in loss - review investment strategy")
+        else:
+            recommendations.append("Portfolio is performing well - consider taking partial profits")
+        
+        for i, rec in enumerate(recommendations[:5], 1):
+            pdf.cell(0, 6, f"{i}. {rec}", ln=True)
+        
+        # Page 4: Graph
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 14)
+        pdf.cell(0, 10, "4. PORTFOLIO ALLOCATION", ln=True)
+        pdf.ln(10)
+        
+        # Create a simple allocation chart using matplotlib
+        try:
+            # Prepare data for pie chart
+            stock_names = [h['symbol'][:10] for h in portfolio_summary['holdings']]
+            values = [h['current_value'] for h in portfolio_summary['holdings']]
+            
+            # Create pie chart
+            fig, ax = plt.subplots(figsize=(6, 4))
+            wedges, texts, autotexts = ax.pie(
+                values, 
+                labels=stock_names, 
+                autopct='%1.1f%%',
+                startangle=90,
+                wedgeprops={'edgecolor': 'black', 'linewidth': 1}
+            )
+            
+            ax.set_title('Portfolio Allocation by Value', fontsize=12, fontweight='bold')
+            
+            # Save chart to buffer
+            buffer = io.BytesIO()
+            plt.tight_layout()
+            plt.savefig(buffer, format='PNG', dpi=100, bbox_inches='tight')
+            plt.close(fig)
+            buffer.seek(0)
+            
+            # Add image to PDF
+            pdf.set_font("Arial", "", 10)
+            pdf.cell(0, 8, "Allocation Chart:", ln=True)
+            pdf.ln(5)
+            
+            # Save image temporarily
+            temp_img_path = "temp_chart.png"
+            with open(temp_img_path, "wb") as f:
+                f.write(buffer.read())
+            
+            # Add image to PDF
+            pdf.image(temp_img_path, x=30, y=pdf.get_y(), w=150, h=100)
+            
+            # Clean up temp file
+            try:
+                os.remove(temp_img_path)
+            except:
+                pass
+            
+            pdf.ln(110)  # Move down after image
+            
+            # Add legend/explanation
+            pdf.set_font("Arial", "I", 9)
+            pdf.cell(0, 6, "Chart shows percentage allocation of each holding in the portfolio", ln=True)
+            pdf.cell(0, 6, "Larger slices indicate higher portfolio weight", ln=True)
+            
+        except Exception as e:
+            pdf.cell(0, 8, "Chart could not be generated", ln=True)
+            pdf.cell(0, 6, f"Error: {str(e)[:50]}...", ln=True)
+        
+        # Final page: Disclaimer
+        pdf.add_page()
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(0, 10, "DISCLAIMER & NOTES", ln=True)
+        pdf.ln(5)
+        
+        pdf.set_font("Arial", "", 10)
+        disclaimer = [
+            "This report is generated for informational purposes only.",
+            "Past performance is not indicative of future results.",
+            "Investments in securities are subject to market risks.",
+            "Please read all related documents carefully before investing.",
+            "Consult with a qualified financial advisor before making investment decisions.",
+            "",
+            "Generated by: AI Financial Agent",
+            f"Report ID: {datetime.now().strftime('%Y%m%d%H%M%S')}"
+        ]
+        
+        for line in disclaimer:
+            pdf.cell(0, 6, line, ln=True)
+        
+        try:
+            pdf_bytes = pdf.output(dest='S').encode('latin-1')
+        except:
+            try:
+                pdf_bytes = pdf.output(dest='S').encode('utf-8')
+            except Exception as e:
+                # Last resort
+                st.error(f"PDF encoding error: {e}")
+                return None
+        
+        return pdf_bytes
+        
+    except Exception as e:
+        st.error(f"Error generating PDF: {str(e)[:100]}")
+        return None
 
 def get_current_price_yfinance(symbol):
     """Get current price using yfinance"""
@@ -233,6 +514,22 @@ def ai_agent_page():
                     st.session_state.process_button_prompt = prompt
                     st.rerun()
             
+            # ADD THIS NEW BUTTON FOR PDF EXPORT
+            if st.button("📄 Export PDF Report", use_container_width=True, type="secondary"):
+                with st.spinner("Generating PDF report..."):
+                    pdf_bytes = generate_portfolio_pdf()
+                    if pdf_bytes:
+                        st.success("PDF report generated successfully!")
+                        
+                        # Create download button
+                        st.download_button(
+                            label="📥 Download PDF Report",
+                            data=pdf_bytes,
+                            file_name=f"portfolio_report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
+                        )
+            
             st.subheader("💡 Try Asking:")
             st.markdown("""
             - "Price of TCS?"
@@ -248,7 +545,7 @@ def ai_agent_page():
                 st.session_state.show_graph = False
                 st.session_state.process_button_prompt = None
                 st.rerun()
-    
+            
     st.markdown("---")
     
     # ==== MAIN CHAT AREA ====

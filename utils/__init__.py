@@ -2,7 +2,6 @@
 from .stock_data import *
 from .news_sentiment import *
 from .technical_analysis import *
-from .portfolio_manager import *
 from .portfolio_calc import *
 
 __all__ = [
@@ -10,6 +9,5 @@ __all__ = [
     'get_financial_metrics', 
     'get_market_status',
     'news_analyzer',
-    'tech_analyzer',
-    'portfolio_manager'
+    'tech_analyzer'
 ]
